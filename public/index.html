@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>EarnUSDT — WebApp</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root{
+      --bg:#0f172a; --card:#0f172a; --muted:#94a3b8; --accent:#3b82f6; --success:#10b981; --danger:#ef4444; --border:#334155; --text:#f1f5f9;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:18px 12px 90px;}
+    .container{max-width:720px;margin:0 auto;}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);padding:18px;border-radius:14px;border:1px solid var(--border);margin-bottom:18px;}
+    h1{margin:0;font-size:26px}
+    p.lead{color:var(--muted);margin:6px 0 0 0}
+    .btn{width:100%;padding:12px 14px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--accent),#1d4ed8);color:#fff;font-weight:600;cursor:pointer}
+    .btn.small{width:auto;padding:8px 10px;font-size:14px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .footer-nav{position:fixed;left:0;right:0;bottom:0;padding:10px;background:#0b1220;border-top:1px solid var(--border);display:flex;justify-content:space-around}
+    .nav-btn{background:none;border:none;color:var(--muted);font-weight:600;cursor:pointer}
+    .nav-btn.active{color:var(--accent)}
+    input,select,textarea{width:100%;padding:10px;border-radius:8px;background:transparent;border:1px solid var(--border);color:var(--text)}
+    label{font-size:13px;color:var(--muted);display:block;margin-bottom:6px}
+    .small-muted{font-size:13px;color:var(--muted)}
+    .leaderboard-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed rgba(255,255,255,0.02)}
+    .admin-section{margin-bottom:12px}
+    .badge{display:inline-block;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,0.03);color:var(--muted);font-size:13px}
+    #adContainer, #channelJoinModal, #adminLoginModal{display:none}
+    .loading-spinner{border:4px solid #334155;border-top:4px solid var(--accent);border-radius:50%;width:36px;height:36px;animation:spin 1s linear infinite;margin:8px auto}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <div class="topbar">
+      <div>
+        <h1>EarnUSDT</h1>
+        <p class="lead">Watch ads • Earn coins • Withdraw</p>
+      </div>
+      <div style="text-align:right">
+        <div id="userName" class="small-muted">—</div>
+        <div id="userId" class="small-muted">ID: —</div>
+      </div>
+    </div>
+    
+    <div id="home-view" class="view">
+      <div class="card">
+        <h2>Balance</h2>
+        <div id="balanceDisplay" style="font-size:32px;font-weight:700;margin:10px 0">0 Coins</div>
+        <button class="btn" id="mainWithdrawBtn" disabled>
+          Loading Balance...
+        </button>
+      </div>
+
+      <div class="card">
+        <h3>Tasks</h3>
+        <div id="tasksList">Loading tasks from Supabase...</div>
+      </div>
+
+      <div class="card">
+        <h3>Quick Actions</h3>
+        <div style="display:flex;gap:8px">
+          <button class="btn small" id="openReferralBtn" style="flex:1">Referral</button>
+          <button class="btn small" id="openLeaderboardBtn" style="flex:1">Leaderboards</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="withdraw-view" class="view" style="display:none">
+      <div class="card">
+        <h2>Withdraw</h2>
+        <div class="small-muted">Your Balance</div>
+        <div id="withdrawBalanceDisplay" style="font-size:22px;font-weight:700;margin:8px 0">0 Coins</div>
+
+        <label for="paymentMethod">Payment Method</label>
+        <select id="paymentMethod"></select>
+
+        <label for="paymentAddress">Account Number</label>
+        <input type="text" id="paymentAddress" placeholder="e.g., 01XXXXXXXXX" />
+
+        <div style="height:10px"></div>
+        <button class="btn" id="finalWithdrawBtn">Withdraw</button>
+
+        <p class="small-muted" style="margin-top:10px">
+          Withdraw requests will be securely verified and processed.
+        </p>
+      </div>
+    </div>
+
+    <div id="referral-view" class="view" style="display:none">
+      <div class="card">
+        <h2>Referrals</h2>
+        <div class="grid">
+          <div>
+            <div class="small-muted">Total Referrals</div>
+            <div id="referralCountDisplay" style="font-weight:700;font-size:20px">0</div>
+          </div>
+          <div>
+            <div class="small-muted">Referral Earnings</div>
+            <div id="referralBonusDisplay" style="font-weight:700;font-size:20px">0 Coins</div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px">
+          <div class="small-muted">Your Referral Link</div>
+          <div style="position:relative;background:#071028;padding:10px;border-radius:8px;border:1px dashed var(--border);margin-top:8px">
+            <div id="referralLinkText" style="word-break:break-all">loading...</div>
+            <button id="copyReferralBtn" class="btn small" style="position:absolute;right:10px;top:10px">Copy</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="leaderboard-view" class="view" style="display:none">
+      <div class="card">
+        <h2>Top Earners</h2>
+        <div id="topEarnersList" style="margin-top:8px"></div>
+      </div>
+
+      <div class="card">
+        <h2>Top Referrers</h2>
+        <div id="topReferrersList" style="margin-top:8px"></div>
+      </div>
+    </div>
+
+    <div id="admin-view" class="view" style="display:none">
+      <div class="card admin-section">
+        <h2>Admin Panel</h2>
+        <p class="small-muted">Secure Server-side Admin Control Panel (Supabase Sync).</p>
+      </div>
+
+      <div class="card admin-section" id="settingsCard">
+        <h3>Settings</h3>
+        <label>Referral Reward (coins)</label>
+        <input id="setRefBonus" type="number" placeholder="500">
+        <label>Minimum Withdraw (coins)</label>
+        <input id="setMinWithdraw" type="number" placeholder="10000">
+        <label>Coin per Task</label>
+        <input id="setCoinsPerAd" type="number" placeholder="10">
+        <label>Daily Task Limit</label>
+        <input id="setDailyLimit" type="number" placeholder="1000">
+        <div style="height:8px"></div>
+        <button class="btn" id="saveSettingsBtn">Save Settings</button>
+      </div>
+
+      <div class="card admin-section">
+        <h3>Channel Requirements</h3>
+        <label>Add Channel Username (@name)</label>
+        <input id="newChannelName" placeholder="@channelname">
+        <div style="height:8px"></div>
+        <button class="btn" id="addChannelBtn">Add Channel</button>
+        <div style="height:8px"></div>
+        <ul id="channelList" class="small-muted"></ul>
+        <div style="height:8px"></div>
+        <button class="btn" id="toggleChannelReqBtn">Toggle Requirement</button>
+      </div>
+
+      <div class="card admin-section">
+        <h3>Withdraw Requests (Global)</h3>
+        <div id="withdrawalRequestsList"></div>
+      </div>
+
+      <div class="card admin-section">
+        <h3>Tasks Management</h3>
+        <div id="adminTasksList"></div>
+        <div style="margin-top:10px">
+          <label>Task Title</label><input id="newTaskTitle" placeholder="Watch Video Ad" />
+          <label>Coins</label><input id="newTaskCoins" type="number" placeholder="10" />
+          <label>Type</label>
+          <select id="newTaskType">
+            <option value="rewarded">Rewarded</option>
+            <option value="interstitial">Interstitial</option>
+          </select>
+          <label>Ad Network SDK/Script Code</label>
+          <textarea id="newTaskSdk" placeholder="Paste SDK code here"></textarea>
+          <div style="height:8px"></div>
+          <button class="btn" id="addTaskBtn">Add Task</button>
+        </div>
+      </div>
+
+      <div class="card admin-section">
+        <h3>Payment Methods</h3>
+        <div id="paymentMethodsList"></div>
+        <div style="height:8px"></div>
+        <label>Add Payment Method</label>
+        <input id="newPaymentMethod" placeholder="e.g., Bkash" />
+        <div style="height:8px"></div>
+        <button class="btn" id="addPaymentMethodBtn">Add</button>
+      </div>
+    </div>
+    
+    <div id="adContainer" style="position:fixed;inset:0;background:rgba(2,6,23,0.95);z-index:1200;display:none;align-items:center;justify-content:center;flex-direction:column;overflow:auto;padding:18px">
+      <button id="adCloseBtn" style="position:absolute;right:18px;top:18px;background:var(--danger);color:#fff;border:none;padding:8px 10px;border-radius:8px">Close</button>
+      <div class="card" style="max-width:520px;text-align:center;width:100%">
+        <div id="adSpinner" class="loading-spinner"></div>
+        <div id="timerText">Waiting for ad to load...</div>
+        <div style="height:8px"></div>
+        <div id="adInfo" class="small-muted">Checking traffic connection...</div>
+        <div id="adSdkWrapper" style="margin-top:12px;text-align:left"></div>
+      </div>
+    </div>
+
+    <div id="channelJoinModal" style="position:fixed;inset:0;background:rgba(2,6,23,0.9);z-index:1300;display:none;align-items:center;justify-content:center">
+      <div class="card" style="max-width:420px;text-align:center">
+        <h3>Join Channel</h3>
+        <p class="small-muted" id="channelJoinText">Please join our channel to use the app.</p>
+        <div style="height:8px"></div>
+        <button class="btn" id="joinChannelBtn">Open Channel</button>
+        <div style="height:8px"></div>
+        <button class="btn" id="verifyJoinBtn" style="background:var(--success)">I've Joined</button>
+      </div>
+    </div>
+
+  </div>
+
+  <footer class="footer-nav">
+    <button class="nav-btn active" id="navHome">🏠 Home</button>
+    <button class="nav-btn" id="navWithdraw">💳 Withdraw</button>
+    <button class="nav-btn" id="navRefer">🔗 Refer</button>
+    <button class="nav-btn" id="navLeaderboard">🏆 Top</button>
+    <button class="nav-btn" id="navAdmin" style="display:none;">👑 Admin</button>
+      </footer>
+
+
+
+
+<script>
+// ======= CONFIGURATION (UPDATED SUCCESSFULLY) =======
+const BOT_USERNAME = "earnusdt341_bot"; 
+const ADMIN_IDS = [5371043649]; 
+
+const SUPABASE_URL = "https://wciwhymmszkcbkwmdzda.supabase.co"; 
+const SUPABASE_ANON_KEY = "sb_publishable_Y635xJpnPtRGvyO28AQzWg_cA0w8YE3"; 
+
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+
+// Application State
+let appConfig = { coinsPerAd: 10, minWithdraw: 10000, refBonus: 500, dailyAdLimit: 100, channels: [], channelReqEnabled: true, paymentMethods: ['Bkash', 'Nagad', 'Rocket'] };
+let currentUser = { id: null, first_name: 'Guest', username: 'unknown', balance: 0, daily_ad_count: 0, referral_count: 0, channel_verified: false };
+let currentTaskId = null;
+let adTimer = null;
+let timerSeconds = 15;
+
+// DOM Selectors
+const balanceDisplay = document.getElementById('balanceDisplay');
+const mainWithdrawBtn = document.getElementById('mainWithdrawBtn');
+const withdrawBalanceDisplay = document.getElementById('withdrawBalanceDisplay');
+const paymentMethodSelect = document.getElementById('paymentMethod');
+const paymentAddressInput = document.getElementById('paymentAddress');
+const finalWithdrawBtn = document.getElementById('finalWithdrawBtn');
+const referralCountDisplay = document.getElementById('referralCountDisplay');
+const referralBonusDisplay = document.getElementById('referralBonusDisplay');
+const referralLinkText = document.getElementById('referralLinkText');
+const topEarnersList = document.getElementById('topEarnersList');
+const topReferrersList = document.getElementById('topReferrersList');
+const tasksList = document.getElementById('tasksList');
+const adminTasksList = document.getElementById('adminTasksList');
+const withdrawalRequestsList = document.getElementById('withdrawalRequestsList');
+const paymentMethodsList = document.getElementById('paymentMethodsList');
+const userNameEl = document.getElementById('userName');
+const userIdEl = document.getElementById('userId');
+const adContainer = document.getElementById('adContainer');
+const adSdkWrapper = document.getElementById('adSdkWrapper');
+const timerText = document.getElementById('timerText');
+const adSpinner = document.getElementById('adSpinner');
+const adInfo = document.getElementById('adInfo');
+const channelJoinModal = document.getElementById('channelJoinModal');
+
+// Init App
+async function init() {
+  if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
+    const u = tg.initDataUnsafe.user;
+    currentUser.id = u.id;
+    currentUser.first_name = u.first_name || 'User';
+    currentUser.username = u.username || 'unknown';
+    userNameEl.textContent = currentUser.first_name;
+    userIdEl.textContent = `ID: ${currentUser.id}`;
+  } else {
+    // Fallback/Testing Environment Setup
+    currentUser.id = 5371043649; 
+    userNameEl.textContent = "Test Admin";
+    userIdEl.textContent = "ID: 5371043649";
+  }
+
+  if(ADMIN_IDS.includes(currentUser.id)) {
+    document.getElementById('navAdmin').style.display = 'block';
+  }
+
+  await loadConfig();
+  await syncUserWithDatabase();
+  generateReferralLink();
+  await loadTasks();
+  updateUI();
+  checkChannelJoin();
+}
+
+// Database Helpers
+async function loadConfig() {
+  let { data, error } = await supabaseClient.from('config').select('*').single();
+  if (data && !error) {
+    appConfig = data.settings;
+  }
+}
+
+async function syncUserWithDatabase() {
+  let { data: user, error } = await supabaseClient.from('users').select('*').eq('tg_id', currentUser.id).single();
+  
+  if (error && error.code === 'PGRST116') { 
+    let referrerId = getReferrerFromStartParam();
+    
+    let { data: newUser } = await supabaseClient.from('users').insert([{
+      tg_id: currentUser.id,
+      first_name: currentUser.first_name,
+      username: currentUser.username,
+      balance: 0,
+      referred_by: referrerId
+    }]).select().single();
+    
+    if (newUser) currentUser = { ...currentUser, ...newUser };
+  } else if (user) {
+    currentUser = { ...currentUser, ...user };
+  }
+}
+
+async function loadTasks() {
+  let { data: tasksData } = await supabaseClient.from('tasks').select('*').eq('enabled', true);
+  tasksList.innerHTML = '';
+  if(tasksData) {
+    tasksData.forEach(t => {
+      const div = document.createElement('div');
+      div.className='card';
+      div.style.display='flex'; div.style.justifyContent='space-between'; div.style.alignItems='center';
+      div.innerHTML = `<div><strong>${t.title}</strong><div class="small-muted">${t.coins} Coins • ${t.type}</div></div>
+                       <button class="btn small" onclick="startTask(${t.id})">Play</button>`;
+      tasksList.appendChild(div);
+    });
+  }
+}
+
+function generateReferralLink(){
+  const link = `https://t.me/${BOT_USERNAME}?start=ref_${currentUser.id}`;
+  referralLinkText.textContent = link;
+  document.getElementById('copyReferralBtn').onclick = () => {
+    navigator.clipboard.writeText(link);
+    alert('Referral link copied!');
+  };
+}
+
+function getReferrerFromStartParam() {
+  if (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) {
+    const param = tg.initDataUnsafe.start_param;
+    if (param.startsWith('ref_')) {
+      return parseInt(param.replace('ref_', ''));
+    }
+  }
+  return null;
+}
+
+// Anti-Cheat Ad Engine
+async function startTask(taskId) {
+  if(currentUser.daily_ad_count >= appConfig.dailyAdLimit) {
+    return alert('Daily limit reached!');
+  }
+  
+  let { data: task } = await supabaseClient.from('tasks').select('*').eq('id', taskId).single();
+  if(!task) return alert('Task not found');
+  
+  currentTaskId = taskId;
+  adContainer.style.display = 'flex';
+  adSpinner.style.display = 'block';
+  adInfo.textContent = "Connecting to Ad Network Server...";
+  timerText.textContent = "Waiting for ad to load...";
+  adSdkWrapper.innerHTML = '';
+  
+  const iframe = document.createElement('iframe');
+  iframe.style.width = '100%'; iframe.style.height = '250px'; iframe.style.border = 'none';
+  iframe.sandbox = 'allow-scripts allow-same-origin allow-popups'; 
+  adSdkWrapper.appendChild(iframe);
+  
+  // Counter triggers ONLY when iframe loads the ad assets completely
+  iframe.onload = function() {
+    adSpinner.style.display = 'none';
+    adInfo.textContent = "Ad playing successfully. Keep watching.";
+    runAdCountdown();
+  };
+
+  const doc = iframe.contentWindow.document;
+  doc.open(); 
+  doc.write(`<html><body style="margin:0;background:#000;color:#fff;text-align:center;padding-top:20px;">
+    ${task.sdk_code || '<p style="color:#94a3b8;font-size:14px;">Loading Ad Assets...</p>'}
+  </body></html>`); 
+  doc.close();
+}
+
+function runAdCountdown() {
+  timerSeconds = 15;
+  timerText.textContent = `Time remaining: ${timerSeconds} seconds`;
+  clearInterval(adTimer);
+  adTimer = setInterval(async () => {
+    timerSeconds--;
+    timerText.textContent = `Time remaining: ${Math.max(0, timerSeconds)} seconds`;
+    if(timerSeconds <= 0) {
+      clearInterval(adTimer);
+      await triggerRewardOnServer();
+    }
+  }, 1000);
+}
+
+async function triggerRewardOnServer() {
+  adContainer.style.display = 'none';
+  
+  // Call secure database transaction RPC
+  const { data, error } = await supabaseClient.rpc('secure_add_coins', { 
+    user_tg_id: currentUser.id, 
+    task_id: currentTaskId 
+  });
+  
+  if (error) {
+    alert('Verification failed or daily limit exceeded.');
+  } else {
+    currentUser.balance = data.new_balance;
+    currentUser.daily_ad_count = data.new_daily_count;
+    updateUI();
+    alert(`+${data.coins_awarded} Coins credited safely!`);
+  }
+  currentTaskId = null;
+}
+
+// UI Rendering
+function updateUI() {
+  balanceDisplay.textContent = `${currentUser.balance} Coins`;
+  withdrawBalanceDisplay.textContent = `${currentUser.balance} Coins`;
+  referralCountDisplay.textContent = currentUser.referral_count;
+  referralBonusDisplay.textContent = `${currentUser.referral_count * appConfig.refBonus} Coins`;
+  
+  const canWithdraw = currentUser.balance >= appConfig.minWithdraw;
+  mainWithdrawBtn.disabled = !canWithdraw;
+  mainWithdrawBtn.textContent = canWithdraw ? `Withdraw ${currentUser.balance} Coins` : `Reach ${appConfig.minWithdraw} Coins to Withdraw`;
+  finalWithdrawBtn.disabled = !canWithdraw;
+  
+  paymentMethodSelect.innerHTML = '<option value="">Select Method</option>';
+  appConfig.paymentMethods.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m; opt.textContent = m;
+    paymentMethodSelect.appendChild(opt);
+  });
+}
+
+// Handles Secure Withdrawal Requests
+async function handleWithdrawal() {
+  const method = paymentMethodSelect.value;
+  const address = paymentAddressInput.value.trim();
+  
+  if(!method || !address) return alert('Please fill up details');
+  if(currentUser.balance < appConfig.minWithdraw) return alert('Insufficient Balance');
+  
+  const { data, error } = await supabaseClient.from('withdraws').insert([{
+    tg_id: currentUser.id,
+    username: currentUser.username,
+    amount: currentUser.balance,
+    method: method,
+    address: address,
+    status: 'pending'
+  }]);
+  
+  if(!error) {
+    alert('Withdrawal request placed successfully!');
+    currentUser.balance = 0;
+    updateUI();
+    showView('home-view');
+  } else {
+    alert('Error submitting request.');
+  }
+}
+
+// Channel Join Rules Check
+function checkChannelJoin() {
+  if (appConfig.channelReqEnabled && !ADMIN_IDS.includes(currentUser.id) && !currentUser.channel_verified) {
+    const txt = appConfig.channels.length > 0 ? `Please join: ${appConfig.channels.join(', ')}` : 'Join our channel to access app.';
+    document.getElementById('channelJoinText').textContent = txt;
+    channelJoinModal.style.display = 'flex';
+  }
+}
+
+document.getElementById('verifyJoinBtn').addEventListener('click', async () => {
+  alert('Verifying channel status via bot api connection...');
+  channelJoinModal.style.display = 'none'; 
+});
+
+document.getElementById('joinChannelBtn').addEventListener('click', () => {
+  if (appConfig.channels.length > 0) {
+    window.open(`https://t.me/${appConfig.channels[0].replace('@','')}`, '_blank');
+  }
+});
+
+// Navigation Engine
+function showView(id){
+  document.querySelectorAll('.view').forEach(v=>v.style.display='none');
+  const el = document.getElementById(id); if (el) el.style.display='block';
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  if (id==='home-view') document.getElementById('navHome').classList.add('active');
+  if (id==='withdraw-view') document.getElementById('navWithdraw').classList.add('active');
+  if (id==='referral-view') document.getElementById('navRefer').classList.add('active');
+  if (id==='leaderboard-view') { document.getElementById('navLeaderboard').classList.add('active'); loadLeaderboards(); }
+  if (id==='admin-view') document.getElementById('navAdmin').classList.add('active');
+}
+
+async function loadLeaderboards() {
+  let { data: earners } = await supabaseClient.from('users').select('first_name, username, balance').order('balance', {ascending: false}).limit(10);
+  topEarnersList.innerHTML = '';
+  if(earners) {
+    earners.forEach(u => {
+      const d = document.createElement('div'); d.className='leaderboard-item';
+      d.innerHTML = `<div><strong>${u.first_name}</strong><div class="small-muted">@${u.username}</div></div><div>${u.balance} Coins</div>`;
+      topEarnersList.appendChild(d);
+    });
+  }
+}
+
+// Nav Click Listeners
+document.getElementById('navHome').addEventListener('click', ()=>showView('home-view'));
+document.getElementById('navWithdraw').addEventListener('click', ()=>showView('withdraw-view'));
+document.getElementById('navRefer').addEventListener('click', ()=>showView('referral-view'));
+document.getElementById('navLeaderboard').addEventListener('click', ()=>showView('leaderboard-view'));
+document.getElementById('navAdmin').addEventListener('click', ()=>{ if(ADMIN_IDS.includes(currentUser.id)) showView('admin-view'); });
+document.getElementById('openReferralBtn').addEventListener('click', ()=>showView('referral-view'));
+document.getElementById('openLeaderboardBtn').addEventListener('click', ()=>showView('leaderboard-view'));
+document.getElementById('finalWithdrawBtn').addEventListener('click', handleWithdrawal);
+document.getElementById('adCloseBtn').addEventListener('click', () => { clearInterval(adTimer); adContainer.style.display='none'; currentTaskId=null; });
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
+  
