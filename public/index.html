@@ -85,10 +85,11 @@
 
         <div style="height:10px"></div>
         <button class="btn" id="finalWithdrawBtn">Withdraw</button>
+      </div>
 
-        <p class="small-muted" style="margin-top:10px">
-          Withdraw requests will be securely verified and processed.
-        </p>
+      <div class="card">
+        <h3>Your Withdraw History</h3>
+        <div id="userWithdrawHistoryList" class="small-muted">No history found.</div>
       </div>
     </div>
 
@@ -201,7 +202,7 @@
         <div id="timerText">Waiting for ad to load...</div>
         <div style="height:8px"></div>
         <div id="adInfo" class="small-muted">Checking traffic connection...</div>
-        <div id="adSdkWrapper" style="margin-top:12px;text-align:left"></div>
+        <div id="adSdkWrapper" style="margin-top:12px;text-align:left;min-height:150px;width:100%;"></div>
       </div>
     </div>
 
@@ -224,9 +225,7 @@
     <button class="nav-btn" id="navRefer">🔗 Refer</button>
     <button class="nav-btn" id="navLeaderboard">🏆 Top</button>
     <button class="nav-btn" id="navAdmin" style="display:none;">👑 Admin</button>
-          </footer>
-
-
+  </footer>
 
 <script>
 // ======= CONFIGURATION DATA =======
@@ -246,7 +245,11 @@ let currentTaskId = null;
 let adTimer = null;
 let timerSeconds = 15;
 
-// DOM Selectors
+
+
+
+
+  // DOM Selectors
 const balanceDisplay = document.getElementById('balanceDisplay');
 const mainWithdrawBtn = document.getElementById('mainWithdrawBtn');
 const withdrawBalanceDisplay = document.getElementById('withdrawBalanceDisplay');
@@ -270,6 +273,7 @@ const timerText = document.getElementById('timerText');
 const adSpinner = document.getElementById('adSpinner');
 const adInfo = document.getElementById('adInfo');
 const channelJoinModal = document.getElementById('channelJoinModal');
+const userWithdrawHistoryList = document.getElementById('userWithdrawHistoryList');
 
 // Init App
 async function init() {
@@ -281,7 +285,6 @@ async function init() {
     userNameEl.textContent = currentUser.first_name;
     userIdEl.textContent = `ID: ${currentUser.id}`;
   } else {
-    // Fallback/Testing Environment (Admin Simulation)
     currentUser.id = 5371043649; 
     userNameEl.textContent = "Test Admin";
     userIdEl.textContent = "ID: 5371043649";
@@ -289,6 +292,7 @@ async function init() {
 
   if(ADMIN_IDS.includes(currentUser.id)) {
     document.getElementById('navAdmin').style.display = 'block';
+    setupAdminRealtimeNotifications(); // Listen for realtime withdraw alerts
   }
 
   await loadConfig();
@@ -297,6 +301,19 @@ async function init() {
   await loadTasks();
   updateUI();
   checkChannelJoin();
+}
+
+// Real-Time Notification Listener for Admin Only
+function setupAdminRealtimeNotifications() {
+  supabaseClient
+    .channel('realtime_withdraws')
+    .on('postgres_changes', { event: 'INSERT', table: 'withdraws' }, payload => {
+       alert(`🔔 New Withdrawal Request Received!\nAmount: ${payload.new.amount} Coins\nMethod: ${payload.new.method}`);
+       if(document.getElementById('admin-view').style.display === 'block') {
+         loadWithdrawalRequests();
+       }
+    })
+    .subscribe();
 }
 
 // Database Helpers
@@ -361,7 +378,7 @@ function getReferrerFromStartParam() {
   return null;
 }
 
-// Anti-Cheat Ad Engine
+// FIXED: Advanced Script Execution Ad Engine (Bypasses Sandbox Blocks)
 async function startTask(taskId) {
   if(currentUser.daily_ad_count >= appConfig.dailyAdLimit) {
     return alert('Daily limit reached!');
@@ -373,27 +390,37 @@ async function startTask(taskId) {
   currentTaskId = taskId;
   adContainer.style.display = 'flex';
   adSpinner.style.display = 'block';
-  adInfo.textContent = "Connecting to Ad Network Server...";
-  timerText.textContent = "Waiting for ad to load...";
+  adInfo.textContent = "Injecting Ad Script Engine...";
+  timerText.textContent = "Loading Ad Content Safely...";
   adSdkWrapper.innerHTML = '';
   
-  const iframe = document.createElement('iframe');
-  iframe.style.width = '100%'; iframe.style.height = '250px'; iframe.style.border = 'none';
-  iframe.sandbox = 'allow-scripts allow-same-origin allow-popups'; 
-  adSdkWrapper.appendChild(iframe);
-  
-  iframe.onload = function() {
-    adSpinner.style.display = 'none';
-    adInfo.textContent = "Ad playing successfully. Keep watching.";
-    runAdCountdown();
-  };
+  // Directly append and evaluate script on the container to bypass sandbox execution restrictions
+  try {
+    const wrapperDiv = document.createElement('div');
+    wrapperDiv.innerHTML = task.sdk_code;
+    adSdkWrapper.appendChild(wrapperDiv);
+    
+    // Execute script tags inside code manually if browser ignores dynamic scripts
+    wrapperDiv.querySelectorAll('script').forEach(oldScript => {
+      const newScript = document.createElement('script');
+      Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+      newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+      oldScript.parentNode.replaceChild(newScript, oldScript);
+    });
 
-  const doc = iframe.contentWindow.document;
-  doc.open(); 
-  doc.write(`<html><body style="margin:0;background:#000;color:#fff;text-align:center;padding-top:20px;">
-    ${task.sdk_code || '<p style="color:#94a3b8;font-size:14px;">Loading Ad Assets...</p>'}
-  </body></html>`); 
-  doc.close();
+    // Automatically trigger timer setup after network injection
+    setTimeout(() => {
+      adSpinner.style.display = 'none';
+      adInfo.textContent = "Ad active. Keep watching to complete task.";
+      runAdCountdown();
+    }, 1500);
+
+  } catch (e) {
+    console.error(e);
+    adSpinner.style.display = 'none';
+    adInfo.textContent = "Script running natively.";
+    runAdCountdown();
+  }
 }
 
 function runAdCountdown() {
@@ -447,6 +474,34 @@ function updateUI() {
     opt.value = m; opt.textContent = m;
     paymentMethodSelect.appendChild(opt);
   });
+  
+  loadUserWithdrawHistory();
+  }
+
+// NEW: Load Current User's Personal Withdraw Status History
+async function loadUserWithdrawHistory() {
+  if (!currentUser.id) return;
+  let { data: history } = await supabaseClient.from('withdraws').select('*').eq('tg_id', currentUser.id).order('created_at', {ascending: false});
+  userWithdrawHistoryList.innerHTML = '';
+  
+  if (history && history.length > 0) {
+    history.forEach(h => {
+      const item = document.createElement('div');
+      item.className = 'leaderboard-item';
+      let statusColor = 'var(--muted)';
+      if(h.status === 'approved') statusColor = 'var(--success)';
+      if(h.status === 'rejected') statusColor = 'var(--danger)';
+      if(h.status === 'pending') statusColor = 'var(--accent)';
+      
+      item.innerHTML = `
+        <div>⚙️ ${h.amount} Coins (${h.method})</div>
+        <div style="color:${statusColor}; font-weight:bold; font-size:13px;">${h.status.toUpperCase()}</div>
+      `;
+      userWithdrawHistoryList.appendChild(item);
+    });
+  } else {
+    userWithdrawHistoryList.innerHTML = '<div class="small-muted">No withdraw requests submitted yet.</div>';
+  }
 }
 
 // Withdrawal Requests Handler
@@ -498,7 +553,7 @@ document.getElementById('joinChannelBtn').addEventListener('click', () => {
 
 // ======= ADMIN PANEL ACTIONS (CRUD ENGINE) =======
 
-// ১. নতুন টাস্ক যোগ করা (SDK কোডসহ সুপাবেসে পুশ)
+// ১. নতুন টাস্ক যোগ করা
 document.getElementById('addTaskBtn').addEventListener('click', async () => {
   const title = document.getElementById('newTaskTitle').value.trim();
   const coins = parseInt(document.getElementById('newTaskCoins').value);
@@ -556,11 +611,7 @@ window.deleteTask = async function(id) {
   }
 }
 
-
-
-
-
-  // ২. সেটিংস সেভ করা
+// ২. সেটিংস সেভ করা
 document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
   const refBonus = parseInt(document.getElementById('setRefBonus').value) || appConfig.refBonus;
   const minWithdraw = parseInt(document.getElementById('setMinWithdraw').value) || appConfig.minWithdraw;
@@ -579,7 +630,7 @@ document.getElementById('saveSettingsBtn').addEventListener('click', async () =>
   }
 });
 
-// ৩. উইথড্র রিকোয়েস্ট লোড এবং অ্যাকশন
+// ৩. FIXED: উইথড্র রিকোয়েস্ট লোড এবং কপি অপশন ইন্টিগ্রেশন
 async function loadWithdrawalRequests() {
   let { data: requests } = await supabaseClient.from('withdraws').select('*').order('created_at', {ascending: false});
   const withdrawalRequestsList = document.getElementById('withdrawalRequestsList');
@@ -592,8 +643,11 @@ async function loadWithdrawalRequests() {
       div.innerHTML = `
         <div class="small-muted">User ID: ${r.tg_id} (@${r.username})</div>
         <div style="margin:6px 0;"><strong>${r.amount} Coins</strong> via <span class="badge">${r.method}</span></div>
-        <div class="small-muted">Account: ${r.address}</div>
-        <div class="small-muted">Status: <span style="color:${r.status==='pending'?'var(--accent)':'var(--success)'}">${r.status}</span></div>
+        <div class="small-muted" style="display:flex; align-items:center; gap:8px;">
+          Account: <strong id="addr_${r.id}">${r.address}</strong>
+          <button class="btn small" style="padding:2px 6px; font-size:11px; background:#475569;" onclick="copyToClipboard('${r.address}')">Copy</button>
+        </div>
+        <div class="small-muted" style="margin-top:4px;">Status: <span style="color:${r.status==='pending'?'var(--accent)':'var(--success)'}">${r.status}</span></div>
         ${r.status === 'pending' ? `
           <div style="margin-top:8px; display:flex; gap:8px;">
             <button class="btn small" style="background:var(--success);" onclick="updateWithdrawStatus(${r.id}, 'approved')">Approve</button>
@@ -606,6 +660,12 @@ async function loadWithdrawalRequests() {
   } else {
     withdrawalRequestsList.innerHTML = '<div class="small-muted">No withdraw requests found.</div>';
   }
+}
+
+// Helper: Clipboard Copy
+window.copyToClipboard = function(text) {
+  navigator.clipboard.writeText(text);
+  alert('Account number copied: ' + text);
 }
 
 window.updateWithdrawStatus = async function(id, status) {
@@ -701,7 +761,10 @@ function showView(id){
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   
   if (id==='home-view') document.getElementById('navHome').classList.add('active');
-  if (id==='withdraw-view') document.getElementById('navWithdraw').classList.add('active');
+  if (id==='withdraw-view') {
+    document.getElementById('navWithdraw').classList.add('active');
+    loadUserWithdrawHistory(); // Refresh user side history listing
+  }
   if (id==='referral-view') document.getElementById('navRefer').classList.add('active');
   if (id==='leaderboard-view') { document.getElementById('navLeaderboard').classList.add('active'); loadLeaderboards(); }
   if (id==='admin-view') {
@@ -711,7 +774,6 @@ function showView(id){
     loadPaymentMethodsAdmin();
     loadChannelsAdmin();
     
-    // সিঙ্ক ডেটা ফিল ইনপুট
     document.getElementById('setRefBonus').value = appConfig.refBonus;
     document.getElementById('setMinWithdraw').value = appConfig.minWithdraw;
     document.getElementById('setCoinsPerAd').value = appConfig.coinsPerAd;
@@ -729,9 +791,10 @@ async function loadLeaderboards() {
       topEarnersList.appendChild(d);
     });
   }
-}
+  }
 
-// Nav Click Listeners
+
+  // Nav Click Listeners
 document.getElementById('navHome').addEventListener('click', ()=>showView('home-view'));
 document.getElementById('navWithdraw').addEventListener('click', ()=>showView('withdraw-view'));
 document.getElementById('navRefer').addEventListener('click', ()=>showView('referral-view'));
