@@ -224,13 +224,12 @@
     <button class="nav-btn" id="navRefer">🔗 Refer</button>
     <button class="nav-btn" id="navLeaderboard">🏆 Top</button>
     <button class="nav-btn" id="navAdmin" style="display:none;">👑 Admin</button>
-      </footer>
-
+          </footer>
 
 
 
 <script>
-// ======= CONFIGURATION (UPDATED SUCCESSFULLY) =======
+// ======= CONFIGURATION DATA =======
 const BOT_USERNAME = "earnusdt341_bot"; 
 const ADMIN_IDS = [5371043649]; 
 
@@ -282,7 +281,7 @@ async function init() {
     userNameEl.textContent = currentUser.first_name;
     userIdEl.textContent = `ID: ${currentUser.id}`;
   } else {
-    // Fallback/Testing Environment Setup
+    // Fallback/Testing Environment (Admin Simulation)
     currentUser.id = 5371043649; 
     userNameEl.textContent = "Test Admin";
     userIdEl.textContent = "ID: 5371043649";
@@ -383,7 +382,6 @@ async function startTask(taskId) {
   iframe.sandbox = 'allow-scripts allow-same-origin allow-popups'; 
   adSdkWrapper.appendChild(iframe);
   
-  // Counter triggers ONLY when iframe loads the ad assets completely
   iframe.onload = function() {
     adSpinner.style.display = 'none';
     adInfo.textContent = "Ad playing successfully. Keep watching.";
@@ -415,7 +413,6 @@ function runAdCountdown() {
 async function triggerRewardOnServer() {
   adContainer.style.display = 'none';
   
-  // Call secure database transaction RPC
   const { data, error } = await supabaseClient.rpc('secure_add_coins', { 
     user_tg_id: currentUser.id, 
     task_id: currentTaskId 
@@ -452,7 +449,7 @@ function updateUI() {
   });
 }
 
-// Handles Secure Withdrawal Requests
+// Withdrawal Requests Handler
 async function handleWithdrawal() {
   const method = paymentMethodSelect.value;
   const address = paymentAddressInput.value.trim();
@@ -479,7 +476,7 @@ async function handleWithdrawal() {
   }
 }
 
-// Channel Join Rules Check
+// Channel Requirement Rules
 function checkChannelJoin() {
   if (appConfig.channelReqEnabled && !ADMIN_IDS.includes(currentUser.id) && !currentUser.channel_verified) {
     const txt = appConfig.channels.length > 0 ? `Please join: ${appConfig.channels.join(', ')}` : 'Join our channel to access app.';
@@ -499,16 +496,227 @@ document.getElementById('joinChannelBtn').addEventListener('click', () => {
   }
 });
 
+// ======= ADMIN PANEL ACTIONS (CRUD ENGINE) =======
+
+// ১. নতুন টাস্ক যোগ করা (SDK কোডসহ সুপাবেসে পুশ)
+document.getElementById('addTaskBtn').addEventListener('click', async () => {
+  const title = document.getElementById('newTaskTitle').value.trim();
+  const coins = parseInt(document.getElementById('newTaskCoins').value);
+  const type = document.getElementById('newTaskType').value;
+  const sdk_code = document.getElementById('newTaskSdk').value.trim();
+
+  if(!title || !coins || !sdk_code) {
+    return alert('Please fill up all task details including SDK code!');
+  }
+
+  const { data, error } = await supabaseClient.from('tasks').insert([{
+    title: title,
+    coins: coins,
+    type: type,
+    sdk_code: sdk_code,
+    enabled: true
+  }]);
+
+  if(error) {
+    alert('Error adding task: ' + error.message);
+  } else {
+    alert('Task added successfully with SDK code!');
+    document.getElementById('newTaskTitle').value = '';
+    document.getElementById('newTaskCoins').value = '';
+    document.getElementById('newTaskSdk').value = '';
+    await loadTasks();
+    await loadAdminTasks();
+  }
+});
+
+// এডমিন প্যানেলে টাস্কের লিস্ট লোড করা
+async function loadAdminTasks() {
+  let { data: tasksData } = await supabaseClient.from('tasks').select('*');
+  const adminTasksList = document.getElementById('adminTasksList');
+  adminTasksList.innerHTML = '';
+  if(tasksData) {
+    tasksData.forEach(t => {
+      const div = document.createElement('div');
+      div.className = 'leaderboard-item';
+      div.innerHTML = `<div><strong>${t.title}</strong> (${t.coins} coins)</div>
+                       <button class="btn small" style="background:var(--danger);" onclick="deleteTask(${t.id})">Delete</button>`;
+      adminTasksList.appendChild(div);
+    });
+  }
+}
+
+window.deleteTask = async function(id) {
+  if(confirm('Are you sure you want to delete this task?')) {
+    const { error } = await supabaseClient.from('tasks').delete().eq('id', id);
+    if(!error) {
+      alert('Task deleted!');
+      await loadTasks();
+      await loadAdminTasks();
+    }
+  }
+}
+
+
+
+
+
+  // ২. সেটিংস সেভ করা
+document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
+  const refBonus = parseInt(document.getElementById('setRefBonus').value) || appConfig.refBonus;
+  const minWithdraw = parseInt(document.getElementById('setMinWithdraw').value) || appConfig.minWithdraw;
+  const coinsPerAd = parseInt(document.getElementById('setCoinsPerAd').value) || appConfig.coinsPerAd;
+  const dailyAdLimit = parseInt(document.getElementById('setDailyLimit').value) || appConfig.dailyAdLimit;
+
+  const updatedSettings = { ...appConfig, refBonus, minWithdraw, coinsPerAd, dailyAdLimit };
+
+  const { error } = await supabaseClient.from('config').update({ settings: updatedSettings }).eq('id', 1);
+  if(!error) {
+    alert('Settings synced with Supabase successfully!');
+    appConfig = updatedSettings;
+    updateUI();
+  } else {
+    alert('Error saving settings: ' + error.message);
+  }
+});
+
+// ৩. উইথড্র রিকোয়েস্ট লোড এবং অ্যাকশন
+async function loadWithdrawalRequests() {
+  let { data: requests } = await supabaseClient.from('withdraws').select('*').order('created_at', {ascending: false});
+  const withdrawalRequestsList = document.getElementById('withdrawalRequestsList');
+  withdrawalRequestsList.innerHTML = '';
+  
+  if(requests && requests.length > 0) {
+    requests.forEach(r => {
+      const div = document.createElement('div');
+      div.className = 'card';
+      div.innerHTML = `
+        <div class="small-muted">User ID: ${r.tg_id} (@${r.username})</div>
+        <div style="margin:6px 0;"><strong>${r.amount} Coins</strong> via <span class="badge">${r.method}</span></div>
+        <div class="small-muted">Account: ${r.address}</div>
+        <div class="small-muted">Status: <span style="color:${r.status==='pending'?'var(--accent)':'var(--success)'}">${r.status}</span></div>
+        ${r.status === 'pending' ? `
+          <div style="margin-top:8px; display:flex; gap:8px;">
+            <button class="btn small" style="background:var(--success);" onclick="updateWithdrawStatus(${r.id}, 'approved')">Approve</button>
+            <button class="btn small" style="background:var(--danger);" onclick="updateWithdrawStatus(${r.id}, 'rejected')">Reject</button>
+          </div>
+        ` : ''}
+      `;
+      withdrawalRequestsList.appendChild(div);
+    });
+  } else {
+    withdrawalRequestsList.innerHTML = '<div class="small-muted">No withdraw requests found.</div>';
+  }
+}
+
+window.updateWithdrawStatus = async function(id, status) {
+  const { error } = await supabaseClient.from('withdraws').update({ status: status }).eq('id', id);
+  if(!error) {
+    alert(`Request ${status}!`);
+    await loadWithdrawalRequests();
+  }
+}
+
+// ৪. পেমেন্ট মেথড ম্যানেজমেন্ট
+document.getElementById('addPaymentMethodBtn').addEventListener('click', async () => {
+  const newMethod = document.getElementById('newPaymentMethod').value.trim();
+  if(!newMethod) return;
+  
+  appConfig.paymentMethods.push(newMethod);
+  const { error } = await supabaseClient.from('config').update({ settings: appConfig }).eq('id', 1);
+  if(!error) {
+    alert('Payment method added!');
+    document.getElementById('newPaymentMethod').value = '';
+    updateUI();
+    loadPaymentMethodsAdmin();
+  }
+});
+
+function loadPaymentMethodsAdmin() {
+  const paymentMethodsList = document.getElementById('paymentMethodsList');
+  paymentMethodsList.innerHTML = '';
+  appConfig.paymentMethods.forEach((m, idx) => {
+    const li = document.createElement('div');
+    li.className = 'leaderboard-item';
+    li.innerHTML = `<span>${m}</span> <button class="btn small" style="background:var(--danger); padding:4px 6px;" onclick="deleteMethod(${idx})">X</button>`;
+    paymentMethodsList.appendChild(li);
+  });
+}
+
+window.deleteMethod = async function(idx) {
+  appConfig.paymentMethods.splice(idx, 1);
+  const { error } = await supabaseClient.from('config').update({ settings: appConfig }).eq('id', 1);
+  if(!error) {
+    updateUI();
+    loadPaymentMethodsAdmin();
+  }
+}
+
+// ৫. টেলিগ্রাম চ্যানেল রিকোয়ারমেন্ট হ্যান্ডলার
+document.getElementById('addChannelBtn').addEventListener('click', async () => {
+  const channel = document.getElementById('newChannelName').value.trim();
+  if(!channel.startsWith('@')) return alert('Channel must start with @');
+  
+  if(!appConfig.channels.includes(channel)) {
+    appConfig.channels.push(channel);
+    const { error } = await supabaseClient.from('config').update({ settings: appConfig }).eq('id', 1);
+    if(!error) {
+      alert('Channel requirement added!');
+      document.getElementById('newChannelName').value = '';
+      loadChannelsAdmin();
+    }
+  }
+});
+
+document.getElementById('toggleChannelReqBtn').addEventListener('click', async () => {
+  appConfig.channelReqEnabled = !appConfig.channelReqEnabled;
+  const { error } = await supabaseClient.from('config').update({ settings: appConfig }).eq('id', 1);
+  if(!error) {
+    alert(`Channel requirement turned ${appConfig.channelReqEnabled ? 'ON' : 'OFF'}`);
+  }
+});
+
+function loadChannelsAdmin() {
+  const channelList = document.getElementById('channelList');
+  channelList.innerHTML = '';
+  appConfig.channels.forEach((c, idx) => {
+    const li = document.createElement('li');
+    li.style.margin = '4px 0';
+    li.innerHTML = `${c} <button class="btn small" style="background:var(--danger); padding:2px 4px; font-size:11px;" onclick="deleteChannel(${idx})">Remove</button>`;
+    channelList.appendChild(li);
+  });
+}
+
+window.deleteChannel = async function(idx) {
+  appConfig.channels.splice(idx, 1);
+  const { error } = await supabaseClient.from('config').update({ settings: appConfig }).eq('id', 1);
+  if(!error) {
+    loadChannelsAdmin();
+  }
+}
+
 // Navigation Engine
 function showView(id){
   document.querySelectorAll('.view').forEach(v=>v.style.display='none');
   const el = document.getElementById(id); if (el) el.style.display='block';
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  
   if (id==='home-view') document.getElementById('navHome').classList.add('active');
   if (id==='withdraw-view') document.getElementById('navWithdraw').classList.add('active');
   if (id==='referral-view') document.getElementById('navRefer').classList.add('active');
   if (id==='leaderboard-view') { document.getElementById('navLeaderboard').classList.add('active'); loadLeaderboards(); }
-  if (id==='admin-view') document.getElementById('navAdmin').classList.add('active');
+  if (id==='admin-view') {
+    document.getElementById('navAdmin').classList.add('active');
+    loadAdminTasks();
+    loadWithdrawalRequests();
+    loadPaymentMethodsAdmin();
+    loadChannelsAdmin();
+    
+    // সিঙ্ক ডেটা ফিল ইনপুট
+    document.getElementById('setRefBonus').value = appConfig.refBonus;
+    document.getElementById('setMinWithdraw').value = appConfig.minWithdraw;
+    document.getElementById('setCoinsPerAd').value = appConfig.coinsPerAd;
+    document.getElementById('setDailyLimit').value = appConfig.dailyAdLimit;
+  }
 }
 
 async function loadLeaderboards() {
