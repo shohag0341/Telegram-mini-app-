@@ -17,9 +17,10 @@
     h1{margin:0;font-size:26px}
     p.lead{color:var(--muted);margin:6px 0 0 0}
     .btn{width:100%;padding:12px 14px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--accent),#1d4ed8);color:#fff;font-weight:600;cursor:pointer}
+    .btn:disabled{background:#1e293b;color:var(--muted);cursor:not-allowed;}
     .btn.small{width:auto;padding:8px 10px;font-size:14px}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .footer-nav{position:fixed;left:0;right:0;bottom:0;padding:10px;background:#0b1220;border-top:1px solid var(--border);display:flex;justify-content:space-around}
+    .footer-nav{position:fixed;left:0;right:0;bottom:0;padding:10px;background:#0b1220;border-top:1px solid var(--border);display:flex;justify-content:space-around;z-index:1000;}
     .nav-btn{background:none;border:none;color:var(--muted);font-weight:600;cursor:pointer}
     .nav-btn.active{color:var(--accent)}
     input,select,textarea{width:100%;padding:10px;border-radius:8px;background:transparent;border:1px solid var(--border);color:var(--text)}
@@ -28,7 +29,7 @@
     .leaderboard-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed rgba(255,255,255,0.02)}
     .admin-section{margin-bottom:12px}
     .badge{display:inline-block;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,0.03);color:var(--muted);font-size:13px}
-    #adContainer, #channelJoinModal, #adminLoginModal{display:none}
+    #adContainer, #channelJoinModal{display:none}
     .loading-spinner{border:4px solid #334155;border-top:4px solid var(--accent);border-radius:50%;width:36px;height:36px;animation:spin 1s linear infinite;margin:8px auto}
     @keyframes spin{to{transform:rotate(360deg)}}
     .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
@@ -52,9 +53,7 @@
       <div class="card">
         <h2>Balance</h2>
         <div id="balanceDisplay" style="font-size:32px;font-weight:700;margin:10px 0">0 Coins</div>
-        <button class="btn" id="mainWithdrawBtn" disabled>
-          Loading Balance...
-        </button>
+        <button class="btn" id="mainWithdrawBtn" disabled>Loading Balance...</button>
       </div>
 
       <div class="card">
@@ -78,14 +77,14 @@
         <div id="withdrawBalanceDisplay" style="font-size:22px;font-weight:700;margin:8px 0">0 Coins</div>
 
         <label for="paymentMethod">Payment Method</label>
-        <select id="paymentMethod"></select>
+        <select id="paymentMethod"><option value="">Select Method</option></select>
 
         <label for="paymentAddress">Account Number</label>
         <input type="text" id="paymentAddress" placeholder="e.g., 01XXXXXXXXX" />
 
         <div style="height:10px"></div>
         <label for="withdrawAmount">Coin Amount</label>
-        <input type="number" id="withdrawAmount" placeholder="Enter coin amount to withdraw" />
+        <input type="number" id="withdrawAmount" placeholder="Enter coin amount" />
         <div id="coinToMoneyRate" class="small-muted" style="margin-top: 6px; font-weight: 500; color: var(--success);">You will receive: 0.00 BDT</div>
 
         <div style="height:10px"></div>
@@ -127,11 +126,6 @@
         <h2>Top Earners</h2>
         <div id="topEarnersList" style="margin-top:8px"></div>
       </div>
-
-      <div class="card">
-        <h2>Top Referrers</h2>
-        <div id="topReferrersList" style="margin-top:8px"></div>
-      </div>
     </div>
 
     <div id="admin-view" class="view" style="display:none">
@@ -143,15 +137,15 @@
       <div class="card admin-section" id="settingsCard">
         <h3>Settings</h3>
         <label>Referral Reward (coins)</label>
-        <input id="setRefBonus" type="number" placeholder="500">
+        <input id="setRefBonus" type="number">
         <label>Minimum Withdraw (coins)</label>
-        <input id="setMinWithdraw" type="number" placeholder="10000">
+        <input id="setMinWithdraw" type="number">
         <label>Coin per Task</label>
-        <input id="setCoinsPerAd" type="number" placeholder="10">
+        <input id="setCoinsPerAd" type="number">
         <label>Daily Task Limit</label>
-        <input id="setDailyLimit" type="number" placeholder="1000">
+        <input id="setDailyLimit" type="number">
         <label>Coin to BDT Rate (e.g., 0.01 means 100 Coins = 1 Tk)</label>
-        <input id="setCoinBdtRate" type="number" step="0.0001" placeholder="0.01">
+        <input id="setCoinBdtRate" type="number" step="0.0001">
         <div style="height:8px"></div>
         <button class="btn" id="saveSettingsBtn">Save Settings</button>
       </div>
@@ -170,7 +164,7 @@
 
       <div class="card admin-section">
         <h3>Pending Withdraw Requests</h3>
-        <div id="withdrawalRequestsList"></div>
+        <div id="withdrawalRequestsList">Loading pending requests...</div>
       </div>
 
       <div class="card admin-section">
@@ -185,7 +179,7 @@
             <option value="interstitial">Script Code Ad</option>
           </select>
           <label>Ad Network URL or SDK Script</label>
-          <textarea id="newTaskSdk" placeholder="Paste Ad Direct Link URL OR Script Code here"></textarea>
+          <textarea id="newTaskSdk" placeholder="Paste link or script here"></textarea>
           <div style="height:8px"></div>
           <button class="btn" id="addTaskBtn">Add Task</button>
         </div>
@@ -206,9 +200,9 @@
       <button id="adCloseBtn" style="position:absolute;right:18px;top:18px;background:var(--danger);color:#fff;border:none;padding:8px 10px;border-radius:8px">Close</button>
       <div class="card" style="max-width:520px;text-align:center;width:100%">
         <div id="adSpinner" class="loading-spinner"></div>
-        <div id="timerText">Waiting for ad to load...</div>
+        <div id="timerText">Waiting for ad...</div>
         <div style="height:8px"></div>
-        <div id="adInfo" class="small-muted">Checking traffic connection...</div>
+        <div id="adInfo" class="small-muted">Connecting...</div>
         <div id="adSdkWrapper" style="margin-top:12px;text-align:left;min-height:150px;width:100%;"></div>
       </div>
     </div>
@@ -245,7 +239,7 @@ const SUPABASE_ANON_KEY = "sb_publishable_Y635xJpnPtRGvyO28AQzWg_cA0w8YE3";
 let supabaseClient = null;
 const tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
 
-// Application State
+// Default Application Config
 let appConfig = { coinsPerAd: 10, minWithdraw: 10000, refBonus: 500, dailyAdLimit: 100, coinToBdtRate: 0.01, channels: [], channelReqEnabled: true, paymentMethods: ['Bkash', 'Nagad', 'Rocket'] };
 let currentUser = { id: null, first_name: 'Guest', username: 'unknown', balance: 0, daily_ad_count: 0, referral_count: 0, channel_verified: false };
 let currentTaskId = null;
@@ -263,7 +257,6 @@ const referralCountDisplay = document.getElementById('referralCountDisplay');
 const referralBonusDisplay = document.getElementById('referralBonusDisplay');
 const referralLinkText = document.getElementById('referralLinkText');
 const topEarnersList = document.getElementById('topEarnersList');
-const topReferrersList = document.getElementById('topReferrersList');
 const tasksList = document.getElementById('tasksList');
 const adminTasksList = document.getElementById('adminTasksList');
 const withdrawalRequestsList = document.getElementById('withdrawalRequestsList');
@@ -278,7 +271,7 @@ const adInfo = document.getElementById('adInfo');
 const channelJoinModal = document.getElementById('channelJoinModal');
 const userWithdrawHistoryList = document.getElementById('userWithdrawHistoryList');
 
-// Init App
+// Init App Engine
 async function init() {
   try {
     supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -293,6 +286,7 @@ async function init() {
     currentUser.first_name = u.first_name || 'User';
     currentUser.username = u.username || 'unknown';
   } else {
+    // Admin Override Local Testing Fallback
     currentUser.id = 5371043649; 
     currentUser.first_name = "Test Admin";
     currentUser.username = "admin_test";
@@ -301,6 +295,7 @@ async function init() {
   userNameEl.textContent = currentUser.first_name;
   userIdEl.textContent = `ID: ${currentUser.id}`;
 
+  // Check Admin Condition Securely
   if(ADMIN_IDS.includes(currentUser.id) || ADMIN_IDS.includes(String(currentUser.id))) {
     document.getElementById('navAdmin').style.display = 'block';
     setupAdminRealtimeNotifications(); 
@@ -316,30 +311,32 @@ async function init() {
 }
 
 function setupAdminRealtimeNotifications() {
-  supabaseClient
-    .channel('realtime_withdraws')
-    .on('postgres_changes', { event: 'INSERT', table: 'withdraws' }, payload => {
-       alert(`🔔 New Withdrawal Request Received!\nAmount: ${payload.new.amount} Coins\nMethod: ${payload.new.method}`);
-       if(document.getElementById('admin-view').style.display === 'block') {
-         loadWithdrawalRequests();
-       }
-    })
-    .subscribe();
+  try {
+    supabaseClient
+      .channel('realtime_withdraws')
+      .on('postgres_changes', { event: 'INSERT', table: 'withdraws' }, payload => {
+         alert(`🔔 New Withdrawal Request Received!\nAmount: ${payload.new.amount} Coins\nMethod: ${payload.new.method}`);
+         if(document.getElementById('admin-view').style.display === 'block') {
+           loadWithdrawalRequests();
+         }
+      })
+      .subscribe();
+  } catch(e) { console.log(e); }
 }
 
-// Database Helpers
+// Database Connection Functions
 async function loadConfig() {
   let { data, error } = await supabaseClient.from('config').select('*').maybeSingle();
   if (data && !error) {
     appConfig = data.settings || appConfig;
-    if (appConfig.coinToBdtRate === undefined) appConfig.coinToBdtRate = 0.01;
+    if(appConfig.coinToBdtRate === undefined) appConfig.coinToBdtRate = 0.01;
   } else if (!data) {
     await supabaseClient.from('config').insert([{ id: 1, settings: appConfig }]);
   }
 }
 
 async function syncUserWithDatabase() {
-  let { data: user, error } = await supabaseClient.from('users').select('*').eq('tg_id', currentUser.id).maybeSingle();
+  let { data: user } = await supabaseClient.from('users').select('*').eq('tg_id', currentUser.id).maybeSingle();
   
   if (!user) {
     let referrerId = getReferrerFromStartParam();
@@ -358,7 +355,6 @@ async function syncUserWithDatabase() {
     
     if (referrerId && referrerId !== currentUser.id) {
       await supabaseClient.rpc('secure_add_coins', { user_tg_id: referrerId, task_id_param: 0, reward_coins: appConfig.refBonus || 500 });
-      
       let { data: refUser } = await supabaseClient.from('users').select('referral_count').eq('tg_id', referrerId).maybeSingle();
       if(refUser) {
         await supabaseClient.from('users').update({ referral_count: (refUser.referral_count || 0) + 1 }).eq('tg_id', referrerId);
@@ -372,7 +368,7 @@ async function syncUserWithDatabase() {
 async function loadTasks() {
   let { data: tasksData } = await supabaseClient.from('tasks').select('*').eq('enabled', true);
   tasksList.innerHTML = '';
-  if(tasksData) {
+  if(tasksData && tasksData.length > 0) {
     tasksData.forEach(t => {
       const div = document.createElement('div');
       div.className='card';
@@ -381,6 +377,8 @@ async function loadTasks() {
                        <button class="btn small" onclick="startTask(${t.id})">Play</button>`;
       tasksList.appendChild(div);
     });
+  } else {
+    tasksList.innerHTML = '<div class="small-muted">No active tasks found.</div>';
   }
 }
 
@@ -405,9 +403,11 @@ function getReferrerFromStartParam() {
 
 
 
-  // SMART AD ENGINE
+
+
+  // SECURE AD GENERATOR
 async function startTask(taskId) {
-  if(currentUser.daily_ad_count >= appConfig.dailyAdLimit) {
+  if(currentUser.daily_ad_count >= (appConfig.dailyAdLimit || 100)) {
     return alert('Daily limit reached!');
   }
   
@@ -425,13 +425,8 @@ async function startTask(taskId) {
   
   if (rawCode.startsWith('http://') || rawCode.startsWith('https://')) {
     adSpinner.style.display = 'none';
-    adInfo.textContent = "Ad opened in background browser window. Keep active!";
-    
-    if (tg) {
-      tg.openLink(rawCode);
-    } else {
-      window.open(rawCode, '_blank');
-    }
+    adInfo.textContent = "Ad opened in background. Keep page active!";
+    if (tg) { tg.openLink(rawCode); } else { window.open(rawCode, '_blank'); }
     runAdCountdown();
   } else {
     try {
@@ -451,7 +446,6 @@ async function startTask(taskId) {
         adInfo.textContent = "Ad playing natively. Complete the countdown!";
         runAdCountdown();
       }, 1500);
-
     } catch (e) {
       adSpinner.style.display = 'none';
       runAdCountdown();
@@ -500,16 +494,16 @@ async function triggerRewardOnServer() {
   loadTasks();
 }
 
-// UI Rendering
+// UI Setup Engine
 function updateUI() {
   balanceDisplay.textContent = `${currentUser.balance} Coins`;
   withdrawBalanceDisplay.textContent = `${currentUser.balance} Coins`;
   referralCountDisplay.textContent = currentUser.referral_count || 0;
-  referralBonusDisplay.textContent = `${(currentUser.referral_count || 0) * appConfig.refBonus} Coins`;
+  referralBonusDisplay.textContent = `${(currentUser.referral_count || 0) * (appConfig.refBonus || 500)} Coins`;
   
-  const canWithdraw = currentUser.balance >= appConfig.minWithdraw;
+  const canWithdraw = currentUser.balance >= (appConfig.minWithdraw || 10000);
   mainWithdrawBtn.disabled = !canWithdraw;
-  mainWithdrawBtn.textContent = canWithdraw ? `Withdraw Balance` : `Reach ${appConfig.minWithdraw} Coins to Withdraw`;
+  mainWithdrawBtn.textContent = canWithdraw ? `Withdraw Balance` : `Reach ${appConfig.minWithdraw || 10000} Coins to Withdraw`;
   finalWithdrawBtn.disabled = !canWithdraw;
   
   paymentMethodSelect.innerHTML = '<option value="">Select Method</option>';
@@ -520,7 +514,6 @@ function updateUI() {
       paymentMethodSelect.appendChild(opt);
     });
   }
-  loadUserWithdrawHistory();
 }
 
 function setupLiveConversion() {
@@ -557,7 +550,7 @@ async function loadUserWithdrawHistory() {
   }
 }
 
-// Flexible Withdrawal Request
+// Flexible Withdrawal Handler
 async function handleWithdrawal() {
   const method = paymentMethodSelect.value;
   const address = paymentAddressInput.value.trim();
@@ -565,7 +558,7 @@ async function handleWithdrawal() {
   const withdrawAmount = parseInt(amountInput);
   
   if(!method || !address || !amountInput) return alert('Please fill up details');
-  if(isNaN(withdrawAmount) || withdrawAmount <= 0) return alert('Please enter a valid amount');
+  if(isNaN(withdrawAmount) || withdrawAmount <= 0) return alert('Please enter valid amount');
   if(withdrawAmount < appConfig.minWithdraw) return alert(`Minimum withdraw is ${appConfig.minWithdraw} Coins`);
   if(currentUser.balance < withdrawAmount) return alert('Insufficient Balance');
   
@@ -593,7 +586,7 @@ async function handleWithdrawal() {
   }
 }
 
-// Channel Requirements
+// Channel Requirement Persistence
 function checkChannelJoin() {
   if (appConfig.channelReqEnabled && !ADMIN_IDS.includes(currentUser.id) && !ADMIN_IDS.includes(String(currentUser.id)) && !currentUser.channel_verified) {
     const txt = appConfig.channels && appConfig.channels.length > 0 ? `Please join: ${appConfig.channels.join(', ')}` : 'Join our channel to access app.';
@@ -611,7 +604,7 @@ document.getElementById('verifyJoinBtn').addEventListener('click', async () => {
       alert('Channel status verified successfully!');
       updateUI();
     } else {
-      alert('Error updating status. Try again.');
+      alert('Verification error. Try again.');
     }
   } else {
     channelJoinModal.style.display = 'none';
@@ -624,7 +617,7 @@ document.getElementById('joinChannelBtn').addEventListener('click', () => {
   }
 });
 
-// ======= ADMIN ACTIONS =======
+// ======= ADMIN BACKEND CONFIGS =======
 document.getElementById('addTaskBtn').addEventListener('click', async () => {
   const title = document.getElementById('newTaskTitle').value.trim();
   const coins = parseInt(document.getElementById('newTaskCoins').value);
@@ -633,18 +626,11 @@ document.getElementById('addTaskBtn').addEventListener('click', async () => {
 
   if(!title || !coins || !sdk_code) return alert('Please fill up all details!');
 
-  const { error } = await supabaseClient.from('tasks').insert([{
-    title: title,
-    coins: coins,
-    type: type,
-    sdk_code: sdk_code,
-    enabled: true
-  }]);
-
+  const { error } = await supabaseClient.from('tasks').insert([{ title, coins, type, sdk_code, enabled: true }]);
   if(error) {
     alert('Error adding task: ' + error.message);
   } else {
-    alert('Task successfully synchronized!');
+    alert('Task synchronized safely!');
     document.getElementById('newTaskTitle').value = '';
     document.getElementById('newTaskCoins').value = '';
     document.getElementById('newTaskSdk').value = '';
@@ -655,7 +641,6 @@ document.getElementById('addTaskBtn').addEventListener('click', async () => {
 
 async function loadAdminTasks() {
   let { data: tasksData } = await supabaseClient.from('tasks').select('*');
-  const adminTasksList = document.getElementById('adminTasksList');
   adminTasksList.innerHTML = '';
   if(tasksData) {
     tasksData.forEach(t => {
@@ -671,11 +656,7 @@ async function loadAdminTasks() {
 window.deleteTask = async function(id) {
   if(confirm('Are you sure you want to delete this task?')) {
     const { error } = await supabaseClient.from('tasks').delete().eq('id', id);
-    if(!error) {
-      alert('Task deleted!');
-      await loadTasks();
-      await loadAdminTasks();
-    }
+    if(!error) { alert('Task deleted!'); await loadTasks(); await loadAdminTasks(); }
   }
 }
 
@@ -689,17 +670,11 @@ document.getElementById('saveSettingsBtn').addEventListener('click', async () =>
   appConfig = { ...appConfig, refBonus, minWithdraw, coinsPerAd, dailyAdLimit, coinToBdtRate };
 
   const { error } = await supabaseClient.from('config').update({ settings: appConfig }).eq('id', 1);
-  if(!error) {
-    alert('Settings synced successfully!');
-    updateUI();
-  } else {
-    alert('Error saving settings: ' + error.message);
-  }
+  if(!error) { alert('Settings saved successfully!'); updateUI(); } else { alert('Error saving: ' + error.message); }
 });
 
 async function loadWithdrawalRequests() {
   let { data: requests } = await supabaseClient.from('withdraws').select('*').eq('status', 'pending').order('created_at', {ascending: false});
-  const withdrawalRequestsList = document.getElementById('withdrawalRequestsList');
   withdrawalRequestsList.innerHTML = '';
   
   if(requests && requests.length > 0) {
@@ -710,7 +685,7 @@ async function loadWithdrawalRequests() {
         <div class="small-muted">User ID: ${r.tg_id} (@${r.username})</div>
         <div style="margin:6px 0;"><strong>${r.amount} Coins</strong> via <span class="badge">${r.method}</span></div>
         <div class="small-muted" style="display:flex; align-items:center; gap:8px; margin-bottom: 4px;">
-          Account: <strong id="addr_${r.id}">${r.address}</strong>
+          Account: <strong>${r.address}</strong>
           <button class="btn small" style="padding:2px 6px; font-size:11px; background:#475569;" onclick="copyToClipboard('${r.address}')">Copy</button>
         </div>
         <div style="margin-top:8px; display:flex; gap:8px;">
@@ -744,12 +719,11 @@ window.updateWithdrawStatus = async function(id, status, user_tg_id = null, amou
 document.getElementById('addPaymentMethodBtn').addEventListener('click', async () => {
   const newMethod = document.getElementById('newPaymentMethod').value.trim();
   if(!newMethod) return;
-  
   if(!appConfig.paymentMethods) appConfig.paymentMethods = [];
   appConfig.paymentMethods.push(newMethod);
   const { error } = await supabaseClient.from('config').update({ settings: appConfig }).eq('id', 1);
   if(!error) {
-    alert('Payment method added!');
+    alert('Method added!');
     document.getElementById('newPaymentMethod').value = '';
     updateUI();
     loadPaymentMethodsAdmin();
@@ -757,7 +731,6 @@ document.getElementById('addPaymentMethodBtn').addEventListener('click', async (
 });
 
 function loadPaymentMethodsAdmin() {
-  const paymentMethodsList = document.getElementById('paymentMethodsList');
   paymentMethodsList.innerHTML = '';
   if(appConfig.paymentMethods) {
     appConfig.paymentMethods.forEach((m, idx) => {
@@ -772,34 +745,24 @@ function loadPaymentMethodsAdmin() {
 window.deleteMethod = async function(idx) {
   appConfig.paymentMethods.splice(idx, 1);
   const { error } = await supabaseClient.from('config').update({ settings: appConfig }).eq('id', 1);
-  if(!error) {
-    updateUI();
-    loadPaymentMethodsAdmin();
-  }
+  if(!error) { updateUI(); loadPaymentMethodsAdmin(); }
 }
 
 document.getElementById('addChannelBtn').addEventListener('click', async () => {
   const channel = document.getElementById('newChannelName').value.trim();
   if(!channel.startsWith('@')) return alert('Must start with @');
-  
   if(!appConfig.channels) appConfig.channels = [];
   if(!appConfig.channels.includes(channel)) {
     appConfig.channels.push(channel);
     const { error } = await supabaseClient.from('config').update({ settings: appConfig }).eq('id', 1);
-    if(!error) {
-      alert('Channel added!');
-      document.getElementById('newChannelName').value = '';
-      loadChannelsAdmin();
-    }
+    if(!error) { alert('Channel added!'); document.getElementById('newChannelName').value = ''; loadChannelsAdmin(); }
   }
 });
 
 document.getElementById('toggleChannelReqBtn').addEventListener('click', async () => {
   appConfig.channelReqEnabled = !appConfig.channelReqEnabled;
   const { error } = await supabaseClient.from('config').update({ settings: appConfig }).eq('id', 1);
-  if(!error) {
-    alert(`Channel requirement turned ${appConfig.channelReqEnabled ? 'ON' : 'OFF'}`);
-  }
+  if(!error) { alert(`Channel requirement turned ${appConfig.channelReqEnabled ? 'ON' : 'OFF'}`); }
 });
 
 function loadChannelsAdmin() {
@@ -818,12 +781,12 @@ function loadChannelsAdmin() {
 window.deleteChannel = async function(idx) {
   appConfig.channels.splice(idx, 1);
   const { error } = await supabaseClient.from('config').update({ settings: appConfig }).eq('id', 1);
-  if(!error) {
-    loadChannelsAdmin();
+  if(!error) { loadChannelsAdmin(); }
   }
-}
 
-// Navigation Engine
+
+
+  // Navigation View Sync Router
 function showView(id){
   document.querySelectorAll('.view').forEach(v=>v.style.display='none');
   const el = document.getElementById(id); if (el) el.style.display='block';
@@ -843,52 +806,52 @@ function showView(id){
     loadPaymentMethodsAdmin();
     loadChannelsAdmin();
     
-    document.getElementById('setRefBonus').value = appConfig.refBonus;
-    document.getElementById('setMinWithdraw').value = appConfig.minWithdraw;
-    document.getElementById('setCoinsPerAd').value = appConfig.coinsPerAd;
-    document.getElementById('setDailyLimit').value = appConfig.dailyAdLimit;
+    document.getElementById('setRefBonus').value = appConfig.refBonus || 500;
+    document.getElementById('setMinWithdraw').value = appConfig.minWithdraw || 10000;
+    document.getElementById('setCoinsPerAd').value = appConfig.coinsPerAd || 10;
+    document.getElementById('setDailyLimit').value = appConfig.dailyAdLimit || 100;
     document.getElementById('setCoinBdtRate').value = appConfig.coinToBdtRate || 0.01;
-  }
-
-
-  // Fixed Leaderboards with Initial Avatar and Positions
-async function loadLeaderboards() {
-  let { data: earners } = await supabaseClient.from('users').select('first_name, username, balance').order('balance', {ascending: false}).limit(10);
-  topEarnersList.innerHTML = '';
-  
-  if(earners) {
-    earners.forEach((u, index) => {
-      const d = document.createElement('div'); 
-      d.className='leaderboard-item';
-      d.style.display = 'flex';
-      d.style.alignItems = 'center';
-      d.style.justifyContent = 'space-between';
-      
-      let rankBadge = `#${index + 1}`;
-      if(index === 0) rankBadge = '🥇';
-      if(index === 1) rankBadge = '🥈';
-      if(index === 2) rankBadge = '🥉';
-
-      const firstChar = u.first_name ? u.first_name.charAt(0).toUpperCase() : '?';
-      const avatarHtml = `<div style="width:32px; height:32px; background:var(--accent); border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#fff; margin-right:10px;">${firstChar}</div>`;
-
-      d.innerHTML = `
-        <div style="display:flex; align-items:center;">
-          <span style="font-weight:bold; margin-right:12px; width:24px; color:var(--muted);">${rankBadge}</span>
-          ${avatarHtml}
-          <div>
-            <strong>${u.first_name}</strong>
-            <div class="small-muted">@${u.username || 'unknown'}</div>
-          </div>
-        </div>
-        <div style="font-weight:bold; color:var(--success);">${u.balance} Coins</div>
-      `;
-      topEarnersList.appendChild(d);
-    });
   }
 }
 
-// Nav Click Listeners
+// Render Top Earners Dynamic Leaderboard
+async function loadLeaderboards() {
+  try {
+    let { data: earners } = await supabaseClient.from('users').select('first_name, username, balance').order('balance', {ascending: false}).limit(10);
+    topEarnersList.innerHTML = '';
+    
+    if(earners) {
+      earners.forEach((u, index) => {
+        const d = document.createElement('div'); 
+        d.className='leaderboard-item';
+        d.style.display = 'flex'; d.style.alignItems = 'center'; d.style.justifyContent = 'space-between';
+        
+        let rankBadge = `#${index + 1}`;
+        if(index === 0) rankBadge = '🥇';
+        if(index === 1) rankBadge = '🥈';
+        if(index === 2) rankBadge = '🥉';
+
+        const firstChar = u.first_name ? u.first_name.charAt(0).toUpperCase() : '?';
+        const avatarHtml = `<div style="width:32px; height:32px; background:var(--accent); border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#fff; margin-right:10px;">${firstChar}</div>`;
+
+        d.innerHTML = `
+          <div style="display:flex; align-items:center;">
+            <span style="font-weight:bold; margin-right:12px; width:24px; color:var(--muted);">${rankBadge}</span>
+            ${avatarHtml}
+            <div>
+              <strong>${u.first_name}</strong>
+              <div class="small-muted">@${u.username || 'unknown'}</div>
+            </div>
+          </div>
+          <div style="font-weight:bold; color:var(--success);">${u.balance} Coins</div>
+        `;
+        topEarnersList.appendChild(d);
+      });
+    }
+  } catch(e) { console.error(e); }
+}
+
+// Event Watchers
 document.getElementById('navHome').addEventListener('click', ()=>showView('home-view'));
 document.getElementById('navWithdraw').addEventListener('click', ()=>showView('withdraw-view'));
 document.getElementById('navRefer').addEventListener('click', ()=>showView('referral-view'));
