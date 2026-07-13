@@ -84,6 +84,11 @@
         <input type="text" id="paymentAddress" placeholder="e.g., 01XXXXXXXXX" />
 
         <div style="height:10px"></div>
+        <label for="withdrawAmount">Coin Amount</label>
+        <input type="number" id="withdrawAmount" placeholder="Enter coin amount to withdraw" />
+        <div id="coinToMoneyRate" class="small-muted" style="margin-top: 6px; font-weight: 500; color: var(--success);">You will receive: 0.00 BDT</div>
+
+        <div style="height:10px"></div>
         <button class="btn" id="finalWithdrawBtn">Withdraw</button>
       </div>
 
@@ -145,6 +150,8 @@
         <input id="setCoinsPerAd" type="number" placeholder="10">
         <label>Daily Task Limit</label>
         <input id="setDailyLimit" type="number" placeholder="1000">
+        <label>Coin to BDT Rate (e.g., 0.01 means 100 Coins = 1 Tk)</label>
+        <input id="setCoinBdtRate" type="number" step="0.0001" placeholder="0.01">
         <div style="height:8px"></div>
         <button class="btn" id="saveSettingsBtn">Save Settings</button>
       </div>
@@ -239,7 +246,7 @@ let supabaseClient = null;
 const tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
 
 // Application State
-let appConfig = { coinsPerAd: 10, minWithdraw: 10000, refBonus: 500, dailyAdLimit: 100, channels: [], channelReqEnabled: true, paymentMethods: ['Bkash', 'Nagad', 'Rocket'] };
+let appConfig = { coinsPerAd: 10, minWithdraw: 10000, refBonus: 500, dailyAdLimit: 100, coinToBdtRate: 0.01, channels: [], channelReqEnabled: true, paymentMethods: ['Bkash', 'Nagad', 'Rocket'] };
 let currentUser = { id: null, first_name: 'Guest', username: 'unknown', balance: 0, daily_ad_count: 0, referral_count: 0, channel_verified: false };
 let currentTaskId = null;
 let adTimer = null;
@@ -303,11 +310,12 @@ async function init() {
   try { await syncUserWithDatabase(); } catch(e) { console.error(e); }
   generateReferralLink();
   try { await loadTasks(); } catch(e) { console.error(e); }
+  setupLiveConversion();
   updateUI();
   checkChannelJoin();
 }
 
-  function setupAdminRealtimeNotifications() {
+function setupAdminRealtimeNotifications() {
   supabaseClient
     .channel('realtime_withdraws')
     .on('postgres_changes', { event: 'INSERT', table: 'withdraws' }, payload => {
@@ -324,6 +332,7 @@ async function loadConfig() {
   let { data, error } = await supabaseClient.from('config').select('*').maybeSingle();
   if (data && !error) {
     appConfig = data.settings || appConfig;
+    if (appConfig.coinToBdtRate === undefined) appConfig.coinToBdtRate = 0.01;
   } else if (!data) {
     await supabaseClient.from('config').insert([{ id: 1, settings: appConfig }]);
   }
@@ -340,13 +349,20 @@ async function syncUserWithDatabase() {
       first_name: currentUser.first_name,
       username: currentUser.username,
       balance: 0,
-      referred_by: referrerId
+      referred_by: referrerId,
+      referral_count: 0,
+      channel_verified: false
     }]).select().single();
     
     if (newUser) currentUser = { ...currentUser, ...newUser };
     
     if (referrerId && referrerId !== currentUser.id) {
       await supabaseClient.rpc('secure_add_coins', { user_tg_id: referrerId, task_id_param: 0, reward_coins: appConfig.refBonus || 500 });
+      
+      let { data: refUser } = await supabaseClient.from('users').select('referral_count').eq('tg_id', referrerId).maybeSingle();
+      if(refUser) {
+        await supabaseClient.from('users').update({ referral_count: (refUser.referral_count || 0) + 1 }).eq('tg_id', referrerId);
+      }
     }
   } else if (user) {
     currentUser = { ...currentUser, ...user };
@@ -387,7 +403,9 @@ function getReferrerFromStartParam() {
   return null;
 }
 
-// SMART AD ENGINE
+
+
+  // SMART AD ENGINE
 async function startTask(taskId) {
   if(currentUser.daily_ad_count >= appConfig.dailyAdLimit) {
     return alert('Daily limit reached!');
@@ -491,7 +509,7 @@ function updateUI() {
   
   const canWithdraw = currentUser.balance >= appConfig.minWithdraw;
   mainWithdrawBtn.disabled = !canWithdraw;
-  mainWithdrawBtn.textContent = canWithdraw ? `Withdraw ${currentUser.balance} Coins` : `Reach ${appConfig.minWithdraw} Coins to Withdraw`;
+  mainWithdrawBtn.textContent = canWithdraw ? `Withdraw Balance` : `Reach ${appConfig.minWithdraw} Coins to Withdraw`;
   finalWithdrawBtn.disabled = !canWithdraw;
   
   paymentMethodSelect.innerHTML = '<option value="">Select Method</option>';
@@ -503,6 +521,15 @@ function updateUI() {
     });
   }
   loadUserWithdrawHistory();
+}
+
+function setupLiveConversion() {
+  document.getElementById('withdrawAmount').addEventListener('input', (e) => {
+    const coins = parseInt(e.target.value) || 0;
+    const rate = appConfig.coinToBdtRate || 0.01;
+    const totalMoney = (coins * rate).toFixed(2);
+    document.getElementById('coinToMoneyRate').innerHTML = `You will receive: <strong>${totalMoney} BDT</strong>`;
+  });
 }
 
 async function loadUserWithdrawHistory() {
@@ -530,30 +557,35 @@ async function loadUserWithdrawHistory() {
   }
 }
 
-// Withdrawal Request
+// Flexible Withdrawal Request
 async function handleWithdrawal() {
   const method = paymentMethodSelect.value;
   const address = paymentAddressInput.value.trim();
+  const amountInput = document.getElementById('withdrawAmount').value;
+  const withdrawAmount = parseInt(amountInput);
   
-  if(!method || !address) return alert('Please fill up details');
-  if(currentUser.balance < appConfig.minWithdraw) return alert('Insufficient Balance');
+  if(!method || !address || !amountInput) return alert('Please fill up details');
+  if(isNaN(withdrawAmount) || withdrawAmount <= 0) return alert('Please enter a valid amount');
+  if(withdrawAmount < appConfig.minWithdraw) return alert(`Minimum withdraw is ${appConfig.minWithdraw} Coins`);
+  if(currentUser.balance < withdrawAmount) return alert('Insufficient Balance');
   
-  const currentBal = currentUser.balance;
-  
-  const { error: balError } = await supabaseClient.from('users').update({ balance: currentBal - currentBal }).eq('tg_id', currentUser.id);
+  const { error: balError } = await supabaseClient.from('users').update({ balance: currentUser.balance - withdrawAmount }).eq('tg_id', currentUser.id);
   
   if(!balError) {
     await supabaseClient.from('withdraws').insert([{
       tg_id: currentUser.id,
       username: currentUser.username || 'N/A',
-      amount: currentBal,
+      amount: withdrawAmount,
       method: method,
       address: address,
       status: 'pending'
     }]);
     
     alert('Withdrawal request placed successfully!');
-    currentUser.balance = 0;
+    currentUser.balance -= withdrawAmount;
+    document.getElementById('withdrawAmount').value = '';
+    paymentAddressInput.value = '';
+    document.getElementById('coinToMoneyRate').innerHTML = 'You will receive: 0.00 BDT';
     updateUI();
     showView('home-view');
   } else {
@@ -571,8 +603,19 @@ function checkChannelJoin() {
 }
 
 document.getElementById('verifyJoinBtn').addEventListener('click', async () => {
-  alert('Verifying channel status...');
-  channelJoinModal.style.display = 'none'; 
+  if (supabaseClient && currentUser.id) {
+    const { error } = await supabaseClient.from('users').update({ channel_verified: true }).eq('tg_id', currentUser.id);
+    if(!error) {
+      currentUser.channel_verified = true;
+      channelJoinModal.style.display = 'none';
+      alert('Channel status verified successfully!');
+      updateUI();
+    } else {
+      alert('Error updating status. Try again.');
+    }
+  } else {
+    channelJoinModal.style.display = 'none';
+  }
 });
 
 document.getElementById('joinChannelBtn').addEventListener('click', () => {
@@ -641,8 +684,9 @@ document.getElementById('saveSettingsBtn').addEventListener('click', async () =>
   const minWithdraw = parseInt(document.getElementById('setMinWithdraw').value) || appConfig.minWithdraw;
   const coinsPerAd = parseInt(document.getElementById('setCoinsPerAd').value) || appConfig.coinsPerAd;
   const dailyAdLimit = parseInt(document.getElementById('setDailyLimit').value) || appConfig.dailyAdLimit;
+  const coinToBdtRate = parseFloat(document.getElementById('setCoinBdtRate').value) || appConfig.coinToBdtRate;
 
-  appConfig = { ...appConfig, refBonus, minWithdraw, coinsPerAd, dailyAdLimit };
+  appConfig = { ...appConfig, refBonus, minWithdraw, coinsPerAd, dailyAdLimit, coinToBdtRate };
 
   const { error } = await supabaseClient.from('config').update({ settings: appConfig }).eq('id', 1);
   if(!error) {
@@ -750,9 +794,7 @@ document.getElementById('addChannelBtn').addEventListener('click', async () => {
   }
 });
 
-
-
-  document.getElementById('toggleChannelReqBtn').addEventListener('click', async () => {
+document.getElementById('toggleChannelReqBtn').addEventListener('click', async () => {
   appConfig.channelReqEnabled = !appConfig.channelReqEnabled;
   const { error } = await supabaseClient.from('config').update({ settings: appConfig }).eq('id', 1);
   if(!error) {
@@ -805,16 +847,42 @@ function showView(id){
     document.getElementById('setMinWithdraw').value = appConfig.minWithdraw;
     document.getElementById('setCoinsPerAd').value = appConfig.coinsPerAd;
     document.getElementById('setDailyLimit').value = appConfig.dailyAdLimit;
+    document.getElementById('setCoinBdtRate').value = appConfig.coinToBdtRate || 0.01;
   }
-}
 
+
+  // Fixed Leaderboards with Initial Avatar and Positions
 async function loadLeaderboards() {
   let { data: earners } = await supabaseClient.from('users').select('first_name, username, balance').order('balance', {ascending: false}).limit(10);
   topEarnersList.innerHTML = '';
+  
   if(earners) {
-    earners.forEach(u => {
-      const d = document.createElement('div'); d.className='leaderboard-item';
-      d.innerHTML = `<div><strong>${u.first_name}</strong><div class="small-muted">@${u.username}</div></div><div>${u.balance} Coins</div>`;
+    earners.forEach((u, index) => {
+      const d = document.createElement('div'); 
+      d.className='leaderboard-item';
+      d.style.display = 'flex';
+      d.style.alignItems = 'center';
+      d.style.justifyContent = 'space-between';
+      
+      let rankBadge = `#${index + 1}`;
+      if(index === 0) rankBadge = '🥇';
+      if(index === 1) rankBadge = '🥈';
+      if(index === 2) rankBadge = '🥉';
+
+      const firstChar = u.first_name ? u.first_name.charAt(0).toUpperCase() : '?';
+      const avatarHtml = `<div style="width:32px; height:32px; background:var(--accent); border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#fff; margin-right:10px;">${firstChar}</div>`;
+
+      d.innerHTML = `
+        <div style="display:flex; align-items:center;">
+          <span style="font-weight:bold; margin-right:12px; width:24px; color:var(--muted);">${rankBadge}</span>
+          ${avatarHtml}
+          <div>
+            <strong>${u.first_name}</strong>
+            <div class="small-muted">@${u.username || 'unknown'}</div>
+          </div>
+        </div>
+        <div style="font-weight:bold; color:var(--success);">${u.balance} Coins</div>
+      `;
       topEarnersList.appendChild(d);
     });
   }
