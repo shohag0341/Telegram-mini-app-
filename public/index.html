@@ -162,7 +162,7 @@
       </div>
 
       <div class="card admin-section">
-        <h3>Withdraw Requests (Global)</h3>
+        <h3>Pending Withdraw Requests</h3>
         <div id="withdrawalRequestsList"></div>
       </div>
 
@@ -174,11 +174,11 @@
           <label>Coins</label><input id="newTaskCoins" type="number" placeholder="10" />
           <label>Type</label>
           <select id="newTaskType">
-            <option value="rewarded">Rewarded</option>
-            <option value="interstitial">Interstitial</option>
+            <option value="rewarded">Direct Link Ad</option>
+            <option value="interstitial">Script Code Ad</option>
           </select>
-          <label>Ad Network SDK/Script Code</label>
-          <textarea id="newTaskSdk" placeholder="Paste SDK code here"></textarea>
+          <label>Ad Network URL or SDK Script</label>
+          <textarea id="newTaskSdk" placeholder="Paste Ad Direct Link URL OR Script Code here"></textarea>
           <div style="height:8px"></div>
           <button class="btn" id="addTaskBtn">Add Task</button>
         </div>
@@ -245,11 +245,7 @@ let currentTaskId = null;
 let adTimer = null;
 let timerSeconds = 15;
 
-
-
-
-
-  // DOM Selectors
+// DOM Selectors
 const balanceDisplay = document.getElementById('balanceDisplay');
 const mainWithdrawBtn = document.getElementById('mainWithdrawBtn');
 const withdrawBalanceDisplay = document.getElementById('withdrawBalanceDisplay');
@@ -292,7 +288,7 @@ async function init() {
 
   if(ADMIN_IDS.includes(currentUser.id)) {
     document.getElementById('navAdmin').style.display = 'block';
-    setupAdminRealtimeNotifications(); // Listen for realtime withdraw alerts
+    setupAdminRealtimeNotifications(); 
   }
 
   await loadConfig();
@@ -303,7 +299,6 @@ async function init() {
   checkChannelJoin();
 }
 
-// Real-Time Notification Listener for Admin Only
 function setupAdminRealtimeNotifications() {
   supabaseClient
     .channel('realtime_withdraws')
@@ -352,7 +347,7 @@ async function loadTasks() {
       const div = document.createElement('div');
       div.className='card';
       div.style.display='flex'; div.style.justifyContent='space-between'; div.style.alignItems='center';
-      div.innerHTML = `<div><strong>${t.title}</strong><div class="small-muted">${t.coins} Coins • ${t.type}</div></div>
+      div.innerHTML = `<div><strong>${t.title}</strong><div class="small-muted">${t.coins} Coins</div></div>
                        <button class="btn small" onclick="startTask(${t.id})">Play</button>`;
       tasksList.appendChild(div);
     });
@@ -378,7 +373,8 @@ function getReferrerFromStartParam() {
   return null;
 }
 
-// FIXED: Advanced Script Execution Ad Engine (Bypasses Sandbox Blocks)
+
+// SMART AD ENGINE: Handles Both Script Tags and Direct Link URLs 
 async function startTask(taskId) {
   if(currentUser.daily_ad_count >= appConfig.dailyAdLimit) {
     return alert('Daily limit reached!');
@@ -390,36 +386,47 @@ async function startTask(taskId) {
   currentTaskId = taskId;
   adContainer.style.display = 'flex';
   adSpinner.style.display = 'block';
-  adInfo.textContent = "Injecting Ad Script Engine...";
-  timerText.textContent = "Loading Ad Content Safely...";
+  adInfo.textContent = "Initializing secure ad stream...";
+  timerText.textContent = "Loading Ad Content...";
   adSdkWrapper.innerHTML = '';
   
-  // Directly append and evaluate script on the container to bypass sandbox execution restrictions
-  try {
-    const wrapperDiv = document.createElement('div');
-    wrapperDiv.innerHTML = task.sdk_code;
-    adSdkWrapper.appendChild(wrapperDiv);
-    
-    // Execute script tags inside code manually if browser ignores dynamic scripts
-    wrapperDiv.querySelectorAll('script').forEach(oldScript => {
-      const newScript = document.createElement('script');
-      Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
-      newScript.appendChild(document.createTextNode(oldScript.innerHTML));
-      oldScript.parentNode.replaceChild(newScript, oldScript);
-    });
-
-    // Automatically trigger timer setup after network injection
-    setTimeout(() => {
-      adSpinner.style.display = 'none';
-      adInfo.textContent = "Ad active. Keep watching to complete task.";
-      runAdCountdown();
-    }, 1500);
-
-  } catch (e) {
-    console.error(e);
+  const rawCode = task.sdk_code.trim();
+  
+  // Check if Input is a Direct Link URL
+  if (rawCode.startsWith('http://') || rawCode.startsWith('https://')) {
     adSpinner.style.display = 'none';
-    adInfo.textContent = "Script running natively.";
+    adInfo.textContent = "Ad opened in safe background browser window. Keep active!";
+    
+    if (tg) {
+      tg.openLink(rawCode);
+    } else {
+      window.open(rawCode, '_blank');
+    }
     runAdCountdown();
+  } else {
+    // Treat as Script Code Injection
+    try {
+      const wrapperDiv = document.createElement('div');
+      wrapperDiv.innerHTML = rawCode;
+      adSdkWrapper.appendChild(wrapperDiv);
+      
+      wrapperDiv.querySelectorAll('script').forEach(oldScript => {
+        const newScript = document.createElement('script');
+        Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+        newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+        oldScript.parentNode.replaceChild(newScript, oldScript);
+      });
+
+      setTimeout(() => {
+        adSpinner.style.display = 'none';
+        adInfo.textContent = "Ad playing natively. Complete the countdown!";
+        runAdCountdown();
+      }, 1500);
+
+    } catch (e) {
+      adSpinner.style.display = 'none';
+      runAdCountdown();
+    }
   }
 }
 
@@ -476,9 +483,8 @@ function updateUI() {
   });
   
   loadUserWithdrawHistory();
-  }
+}
 
-// NEW: Load Current User's Personal Withdraw Status History
 async function loadUserWithdrawHistory() {
   if (!currentUser.id) return;
   let { data: history } = await supabaseClient.from('withdraws').select('*').eq('tg_id', currentUser.id).order('created_at', {ascending: false});
@@ -541,7 +547,7 @@ function checkChannelJoin() {
 }
 
 document.getElementById('verifyJoinBtn').addEventListener('click', async () => {
-  alert('Verifying channel status via bot api connection...');
+  alert('Verifying channel status...');
   channelJoinModal.style.display = 'none'; 
 });
 
@@ -553,7 +559,6 @@ document.getElementById('joinChannelBtn').addEventListener('click', () => {
 
 // ======= ADMIN PANEL ACTIONS (CRUD ENGINE) =======
 
-// ১. নতুন টাস্ক যোগ করা
 document.getElementById('addTaskBtn').addEventListener('click', async () => {
   const title = document.getElementById('newTaskTitle').value.trim();
   const coins = parseInt(document.getElementById('newTaskCoins').value);
@@ -561,7 +566,7 @@ document.getElementById('addTaskBtn').addEventListener('click', async () => {
   const sdk_code = document.getElementById('newTaskSdk').value.trim();
 
   if(!title || !coins || !sdk_code) {
-    return alert('Please fill up all task details including SDK code!');
+    return alert('Please fill up all task details!');
   }
 
   const { data, error } = await supabaseClient.from('tasks').insert([{
@@ -575,7 +580,7 @@ document.getElementById('addTaskBtn').addEventListener('click', async () => {
   if(error) {
     alert('Error adding task: ' + error.message);
   } else {
-    alert('Task added successfully with SDK code!');
+    alert('Task configuration synced successfully!');
     document.getElementById('newTaskTitle').value = '';
     document.getElementById('newTaskCoins').value = '';
     document.getElementById('newTaskSdk').value = '';
@@ -584,7 +589,6 @@ document.getElementById('addTaskBtn').addEventListener('click', async () => {
   }
 });
 
-// এডমিন প্যানেলে টাস্কের লিস্ট লোড করা
 async function loadAdminTasks() {
   let { data: tasksData } = await supabaseClient.from('tasks').select('*');
   const adminTasksList = document.getElementById('adminTasksList');
@@ -611,7 +615,6 @@ window.deleteTask = async function(id) {
   }
 }
 
-// ২. সেটিংস সেভ করা
 document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
   const refBonus = parseInt(document.getElementById('setRefBonus').value) || appConfig.refBonus;
   const minWithdraw = parseInt(document.getElementById('setMinWithdraw').value) || appConfig.minWithdraw;
@@ -622,7 +625,7 @@ document.getElementById('saveSettingsBtn').addEventListener('click', async () =>
 
   const { error } = await supabaseClient.from('config').update({ settings: updatedSettings }).eq('id', 1);
   if(!error) {
-    alert('Settings synced with Supabase successfully!');
+    alert('Settings synced successfully!');
     appConfig = updatedSettings;
     updateUI();
   } else {
@@ -630,9 +633,13 @@ document.getElementById('saveSettingsBtn').addEventListener('click', async () =>
   }
 });
 
-// ৩. FIXED: উইথড্র রিকোয়েস্ট লোড এবং কপি অপশন ইন্টিগ্রেশন
+
+
+
+
+  // FIXED: Filter out non-pending withdraw items in Admin UI view
 async function loadWithdrawalRequests() {
-  let { data: requests } = await supabaseClient.from('withdraws').select('*').order('created_at', {ascending: false});
+  let { data: requests } = await supabaseClient.from('withdraws').select('*').eq('status', 'pending').order('created_at', {ascending: false});
   const withdrawalRequestsList = document.getElementById('withdrawalRequestsList');
   withdrawalRequestsList.innerHTML = '';
   
@@ -643,26 +650,22 @@ async function loadWithdrawalRequests() {
       div.innerHTML = `
         <div class="small-muted">User ID: ${r.tg_id} (@${r.username})</div>
         <div style="margin:6px 0;"><strong>${r.amount} Coins</strong> via <span class="badge">${r.method}</span></div>
-        <div class="small-muted" style="display:flex; align-items:center; gap:8px;">
+        <div class="small-muted" style="display:flex; align-items:center; gap:8px; margin-bottom: 4px;">
           Account: <strong id="addr_${r.id}">${r.address}</strong>
           <button class="btn small" style="padding:2px 6px; font-size:11px; background:#475569;" onclick="copyToClipboard('${r.address}')">Copy</button>
         </div>
-        <div class="small-muted" style="margin-top:4px;">Status: <span style="color:${r.status==='pending'?'var(--accent)':'var(--success)'}">${r.status}</span></div>
-        ${r.status === 'pending' ? `
-          <div style="margin-top:8px; display:flex; gap:8px;">
-            <button class="btn small" style="background:var(--success);" onclick="updateWithdrawStatus(${r.id}, 'approved')">Approve</button>
-            <button class="btn small" style="background:var(--danger);" onclick="updateWithdrawStatus(${r.id}, 'rejected')">Reject</button>
-          </div>
-        ` : ''}
+        <div style="margin-top:8px; display:flex; gap:8px;">
+          <button class="btn small" style="background:var(--success);" onclick="updateWithdrawStatus(${r.id}, 'approved')">Approve</button>
+          <button class="btn small" style="background:var(--danger);" onclick="updateWithdrawStatus(${r.id}, 'rejected')">Reject</button>
+        </div>
       `;
       withdrawalRequestsList.appendChild(div);
     });
   } else {
-    withdrawalRequestsList.innerHTML = '<div class="small-muted">No withdraw requests found.</div>';
+    withdrawalRequestsList.innerHTML = '<div class="small-muted">No pending withdraw requests found.</div>';
   }
 }
 
-// Helper: Clipboard Copy
 window.copyToClipboard = function(text) {
   navigator.clipboard.writeText(text);
   alert('Account number copied: ' + text);
@@ -671,12 +674,11 @@ window.copyToClipboard = function(text) {
 window.updateWithdrawStatus = async function(id, status) {
   const { error } = await supabaseClient.from('withdraws').update({ status: status }).eq('id', id);
   if(!error) {
-    alert(`Request ${status}!`);
-    await loadWithdrawalRequests();
+    alert(`Request marked as ${status}!`);
+    await loadWithdrawalRequests(); // Automatically disappears from pending list
   }
 }
 
-// ৪. পেমেন্ট মেথড ম্যানেজমেন্ট
 document.getElementById('addPaymentMethodBtn').addEventListener('click', async () => {
   const newMethod = document.getElementById('newPaymentMethod').value.trim();
   if(!newMethod) return;
@@ -711,7 +713,6 @@ window.deleteMethod = async function(idx) {
   }
 }
 
-// ৫. টেলিগ্রাম চ্যানেল রিকোয়ারমেন্ট হ্যান্ডলার
 document.getElementById('addChannelBtn').addEventListener('click', async () => {
   const channel = document.getElementById('newChannelName').value.trim();
   if(!channel.startsWith('@')) return alert('Channel must start with @');
@@ -763,7 +764,7 @@ function showView(id){
   if (id==='home-view') document.getElementById('navHome').classList.add('active');
   if (id==='withdraw-view') {
     document.getElementById('navWithdraw').classList.add('active');
-    loadUserWithdrawHistory(); // Refresh user side history listing
+    loadUserWithdrawHistory(); 
   }
   if (id==='referral-view') document.getElementById('navRefer').classList.add('active');
   if (id==='leaderboard-view') { document.getElementById('navLeaderboard').classList.add('active'); loadLeaderboards(); }
@@ -791,10 +792,9 @@ async function loadLeaderboards() {
       topEarnersList.appendChild(d);
     });
   }
-  }
+}
 
-
-  // Nav Click Listeners
+// Nav Click Listeners
 document.getElementById('navHome').addEventListener('click', ()=>showView('home-view'));
 document.getElementById('navWithdraw').addEventListener('click', ()=>showView('withdraw-view'));
 document.getElementById('navRefer').addEventListener('click', ()=>showView('referral-view'));
