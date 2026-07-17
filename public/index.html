@@ -949,6 +949,7 @@ function showView(id){
   // ==================== REFERRAL VIEW UPDATE ====================
   if (id==='referral-view') {
     document.getElementById('navRefer').classList.add('active');
+    generateReferralLink();
     
     // ইউজার যদি ইতিমধ্যে কোনো রেফার কোড ব্যবহার করে থাকে, তবে ইনপুট কার্ডটি লুকানো থাকবে
     const manualCard = document.getElementById('manualReferCard');
