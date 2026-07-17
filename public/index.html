@@ -1075,7 +1075,69 @@ setTimeout(() => {
   }
 }, 1000);
 
-document.addEventListener('DOMContentLoaded', init);
+
+
+
+
+
+
+// ==========================================
+// NEW REFERRAL LINK & ID LOADER (OVERRIDE)
+// ==========================================
+function generateReferralLink(){
+  const tgUser = window.Telegram?.WebApp?.initDataUnsafe?.user;
+  const userId = currentUser?.id || tgUser?.id;
+  
+  if (!userId) {
+    setTimeout(generateReferralLink, 500);
+    return;
+  }
+
+  const link = `https://t.me/${BOT_USERNAME}?start=ref_${userId}`;
+  
+  const linkEl = document.getElementById('referralLinkText');
+  const idEl = document.getElementById('myReferralIdText');
+  
+  if (linkEl) linkEl.textContent = link;
+  if (idEl) idEl.textContent = userId;
+  
+  const copyRefBtn = document.getElementById('copyReferralBtn');
+  if (copyRefBtn) {
+    copyRefBtn.onclick = () => {
+      navigator.clipboard.writeText(link);
+      alert('Referral link copied! 🔗');
+    };
+  }
+
+  const copyIdBtn = document.getElementById('copyOnlyIdBtn');
+  if (copyIdBtn) {
+    copyIdBtn.onclick = () => {
+      navigator.clipboard.writeText(userId);
+      alert('Your Referral ID copied! 📋');
+    };
+  }
+}
+
+// সেফটি চেক: অ্যাপ পুরোপুরি লোড হওয়ার ১ সেকেন্ড পর ফাংশনটি আরেকবার রান হবে
+setTimeout(() => {
+  generateReferralLink();
+}, 1000);
+  
+
+
+
+  
+
+
+  
+  
+  
+  
+  
+  
+  
+  
+  document.addEventListener('DOMContentLoaded', init);
 </script>
 </body>
 </html>
