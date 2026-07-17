@@ -58,7 +58,7 @@
 
       <div class="card">
         <h3>Tasks</h3>
-        <div id="tasksList">Loading tasks from Supabase...</div>
+        <div id="tasksList">Loading tasks...</div>
       </div>
 
       <div class="card">
@@ -70,11 +70,22 @@
       </div>
     </div>
 
-    <div id="withdraw-view" class="view" style="display:none">
+
+
+
+
+
+        <div id="withdraw-view" class="view" style="display:none">
       <div class="card">
         <h2>Withdraw</h2>
         <div class="small-muted">Your Balance</div>
         <div id="withdrawBalanceDisplay" style="font-size:22px;font-weight:700;margin:8px 0">0 Coins</div>
+
+        <!-- উইথড্রয়াল শর্ত ও মিনিমাম গাইডলাইন -->
+        <div class="card" style="background: rgba(255,255,255,0.01); border-color: var(--border); margin: 10px 0; padding: 10px;">
+          <div id="minWithdrawLabel" class="small-muted" style="color: var(--accent);">⚠️ সর্বনিম্ন উইথড্রাল লিমিট: Loading...</div>
+          <div id="minReferLabel" class="small-muted" style="color: var(--danger); margin-top: 4px;">⚠️ উইথড্র করতে রেফার প্রয়োজন: Loading...</div>
+        </div>
 
         <label for="paymentMethod">Payment Method</label>
         <select id="paymentMethod"><option value="">Select Method</option></select>
@@ -112,7 +123,7 @@
         </div>
 
         <div style="margin-top:12px">
-          <div class="small-muted">Your Referral Link</div>
+          <div class="small-muted">Your Referral Link (Your TG ID is Referral ID)</div>
           <div style="position:relative;background:#071028;padding:10px;border-radius:8px;border:1px dashed var(--border);margin-top:8px">
             <div id="referralLinkText" style="word-break:break-all">loading...</div>
             <button id="copyReferralBtn" class="btn small" style="position:absolute;right:10px;top:10px">Copy</button>
@@ -136,19 +147,27 @@
 
       <div class="card admin-section" id="settingsCard">
         <h3>Settings</h3>
-        <label>Referral Reward (coins)</label>
+        <label>Referral Reward (coins) [যে রেফার করবে]</label>
         <input id="setRefBonus" type="number">
+        <label>Referee Join Reward (coins) [যে রেফার কোড বসাবে]</label>
+        <input id="setRefereeBonus" type="number">
         <label>Minimum Withdraw (coins)</label>
         <input id="setMinWithdraw" type="number">
+        <label>Minimum Refer for Withdraw (উইথড্র করতে কয়টি রেফার লাগবে)</label>
+        <input id="setMinReferReq" type="number">
         <label>Coin per Task</label>
         <input id="setCoinsPerAd" type="number">
-        <label>Daily Task Limit</label>
+        <label>Daily Task Limit (প্রতি টাস্কের জন্য)</label>
         <input id="setDailyLimit" type="number">
         <label>Coin to BDT Rate (e.g., 0.01 means 100 Coins = 1 Tk)</label>
         <input id="setCoinBdtRate" type="number" step="0.0001">
         <div style="height:8px"></div>
         <button class="btn" id="saveSettingsBtn">Save Settings</button>
       </div>
+
+
+
+
 
       <div class="card admin-section">
         <h3>Channel Requirements</h3>
@@ -231,6 +250,7 @@
 <script>
 // ======= CONFIGURATION DATA =======
 const BOT_USERNAME = "earnusdt341_bot"; 
+const BOT_TOKEN = "8224498035:AAHg5AQMArVcbiXkPTrea29G6CeK7icUmrU"; 
 const ADMIN_IDS = [5371043649, "5371043649"]; 
 
 const SUPABASE_URL = "https://wciwhymmszkcbkwmdzda.supabase.co"; 
@@ -239,14 +259,35 @@ const SUPABASE_ANON_KEY = "sb_publishable_Y635xJpnPtRGvyO28AQzWg_cA0w8YE3";
 let supabaseClient = null;
 const tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
 
-// Default Application Config
-let appConfig = { coinsPerAd: 10, minWithdraw: 10000, refBonus: 500, dailyAdLimit: 100, coinToBdtRate: 0.01, channels: [], channelReqEnabled: true, paymentMethods: ['Bkash', 'Nagad', 'Rocket'] };
-let currentUser = { id: null, first_name: 'Guest', username: 'unknown', balance: 0, daily_ad_count: 0, referral_count: 0, channel_verified: false };
+// Default Configuration
+let appConfig = { 
+  coinsPerAd: 10, 
+  minWithdraw: 10000, 
+  refBonus: 500, 
+  refeeBonus: 200, 
+  minReferReq: 5,
+  dailyAdLimit: 5, 
+  coinToBdtRate: 0.01, 
+  channels: [], 
+  channelReqEnabled: true, 
+  paymentMethods: ['Bkash', 'Nagad', 'Rocket'] 
+};
+let currentUser = { id: null, first_name: 'Guest', username: 'unknown', balance: 0, daily_ad_count: 0, referral_count: 0, channel_verified: false, ref_code_used: false };
 let currentTaskId = null;
 let adTimer = null;
 let timerSeconds = 15;
+  
 
-// DOM Selectors
+
+
+
+
+
+
+
+
+
+  // DOM Selectors
 const balanceDisplay = document.getElementById('balanceDisplay');
 const mainWithdrawBtn = document.getElementById('mainWithdrawBtn');
 const withdrawBalanceDisplay = document.getElementById('withdrawBalanceDisplay');
@@ -271,7 +312,6 @@ const adInfo = document.getElementById('adInfo');
 const channelJoinModal = document.getElementById('channelJoinModal');
 const userWithdrawHistoryList = document.getElementById('userWithdrawHistoryList');
 
-// Init App Engine
 async function init() {
   try {
     supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -286,7 +326,6 @@ async function init() {
     currentUser.first_name = u.first_name || 'User';
     currentUser.username = u.username || 'unknown';
   } else {
-    // Admin Override Local Testing Fallback
     currentUser.id = 5371043649; 
     currentUser.first_name = "Test Admin";
     currentUser.username = "admin_test";
@@ -295,7 +334,6 @@ async function init() {
   userNameEl.textContent = currentUser.first_name;
   userIdEl.textContent = `ID: ${currentUser.id}`;
 
-  // Check Admin Condition Securely
   if(ADMIN_IDS.includes(currentUser.id) || ADMIN_IDS.includes(String(currentUser.id))) {
     document.getElementById('navAdmin').style.display = 'block';
     setupAdminRealtimeNotifications(); 
@@ -315,7 +353,7 @@ function setupAdminRealtimeNotifications() {
     supabaseClient
       .channel('realtime_withdraws')
       .on('postgres_changes', { event: 'INSERT', table: 'withdraws' }, payload => {
-         alert(`🔔 New Withdrawal Request Received!\nAmount: ${payload.new.amount} Coins\nMethod: ${payload.new.method}`);
+         alert(`🔔 New Withdrawal Request!\nAmount: ${payload.new.amount} Coins`);
          if(document.getElementById('admin-view').style.display === 'block') {
            loadWithdrawalRequests();
          }
@@ -324,12 +362,10 @@ function setupAdminRealtimeNotifications() {
   } catch(e) { console.log(e); }
 }
 
-// Database Connection Functions
 async function loadConfig() {
   let { data, error } = await supabaseClient.from('config').select('*').maybeSingle();
   if (data && !error) {
     appConfig = data.settings || appConfig;
-    if(appConfig.coinToBdtRate === undefined) appConfig.coinToBdtRate = 0.01;
   } else if (!data) {
     await supabaseClient.from('config').insert([{ id: 1, settings: appConfig }]);
   }
@@ -339,42 +375,75 @@ async function syncUserWithDatabase() {
   let { data: user } = await supabaseClient.from('users').select('*').eq('tg_id', currentUser.id).maybeSingle();
   
   if (!user) {
-    let referrerId = getReferrerFromStartParam();
-    
     let { data: newUser } = await supabaseClient.from('users').insert([{
       tg_id: currentUser.id,
       first_name: currentUser.first_name,
       username: currentUser.username,
       balance: 0,
-      referred_by: referrerId,
+      referred_by: null,
       referral_count: 0,
-      channel_verified: false
+      channel_verified: false,
+      ref_code_used: false
     }]).select().single();
     
     if (newUser) currentUser = { ...currentUser, ...newUser };
-    
-    if (referrerId && referrerId !== currentUser.id) {
-      await supabaseClient.rpc('secure_add_coins', { user_tg_id: referrerId, task_id_param: 0, reward_coins: appConfig.refBonus || 500 });
-      let { data: refUser } = await supabaseClient.from('users').select('referral_count').eq('tg_id', referrerId).maybeSingle();
-      if(refUser) {
-        await supabaseClient.from('users').update({ referral_count: (refUser.referral_count || 0) + 1 }).eq('tg_id', referrerId);
-      }
-    }
-  } else if (user) {
+  } else {
     currentUser = { ...currentUser, ...user };
+  }
+}
+
+async function verifyTelegramGroupJoin(userId, channelUsername) {
+  try {
+    const cleanUsername = channelUsername.replace('@', '');
+    const url = `https://api.telegram.org/bot${BOT_TOKEN}/getChatMember?chat_id=@${cleanUsername}&user_id=${userId}`;
+    const response = await fetch(url);
+    const result = await response.json();
+    if (result.ok) {
+      const status = result.result.status;
+      return ['member', 'administrator', 'creator'].includes(status);
+    }
+    return false;
+  } catch (e) {
+    return false;
+  }
+}
+
+function checkChannelJoin() {
+  if (appConfig.channelReqEnabled && !ADMIN_IDS.includes(currentUser.id) && !ADMIN_IDS.includes(String(currentUser.id)) && !currentUser.channel_verified) {
+    const txt = appConfig.channels && appConfig.channels.length > 0 ? `Please join: ${appConfig.channels.join(', ')}` : 'Join our channel to access app.';
+    document.getElementById('channelJoinText').textContent = txt;
+    channelJoinModal.style.display = 'flex';
   }
 }
 
 async function loadTasks() {
   let { data: tasksData } = await supabaseClient.from('tasks').select('*').eq('enabled', true);
+  let today = new Date().toISOString().slice(0, 10);
+  let { data: userLogs } = await supabaseClient.from('user_task_logs').select('task_id, count').eq('tg_id', currentUser.id).eq('date', today);
+
   tasksList.innerHTML = '';
   if(tasksData && tasksData.length > 0) {
     tasksData.forEach(t => {
+      const log = userLogs ? userLogs.find(l => l.task_id === t.id) : null;
+      const completedCount = log ? log.count : 0;
+      const totalLimit = appConfig.dailyAdLimit || 5;
+      const remaining = Math.max(0, totalLimit - completedCount);
+
       const div = document.createElement('div');
       div.className='card';
       div.style.display='flex'; div.style.justifyContent='space-between'; div.style.alignItems='center';
-      div.innerHTML = `<div><strong>${t.title}</strong><div class="small-muted">${t.coins} Coins</div></div>
-                       <button class="btn small" onclick="startTask(${t.id})">Play</button>`;
+      div.innerHTML = `
+        <div>
+          <strong>${t.title}</strong>
+          <div class="small-muted">${t.coins} Coins</div>
+          <div style="font-size:12px; color: var(--accent); margin-top:4px;">
+            আজকের টাস্ক বাকি: <strong>${remaining}/${totalLimit}টি</strong>
+          </div>
+        </div>
+        <button class="btn small" ${remaining <= 0 ? 'disabled' : ''} onclick="startTask(${t.id})">
+          ${remaining <= 0 ? 'Limit Over' : 'Play'}
+        </button>
+      `;
       tasksList.appendChild(div);
     });
   } else {
@@ -389,26 +458,28 @@ function generateReferralLink(){
     navigator.clipboard.writeText(link);
     alert('Referral link copied!');
   };
-}
-
-function getReferrerFromStartParam() {
-  if (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) {
-    const param = tg.initDataUnsafe.start_param;
-    if (param.startsWith('ref_')) {
-      return parseInt(param.replace('ref_', ''));
-    }
   }
-  return null;
-}
 
 
 
 
 
-  // SECURE AD GENERATOR
-async function startTask(taskId) {
-  if(currentUser.daily_ad_count >= (appConfig.dailyAdLimit || 100)) {
-    return alert('Daily limit reached!');
+
+
+
+
+
+
+
+
+
+
+  async function startTask(taskId) {
+  let today = new Date().toISOString().slice(0, 10);
+  let { data: log } = await supabaseClient.from('user_task_logs').select('count').eq('tg_id', currentUser.id).eq('task_id', taskId).eq('date', today).maybeSingle();
+  const completed = log ? log.count : 0;
+  if(completed >= (appConfig.dailyAdLimit || 5)) {
+    return alert('Daily limit reached for this task!');
   }
   
   let { data: task } = await supabaseClient.from('tasks').select('*').eq('id', taskId).single();
@@ -425,7 +496,7 @@ async function startTask(taskId) {
   
   if (rawCode.startsWith('http://') || rawCode.startsWith('https://')) {
     adSpinner.style.display = 'none';
-    adInfo.textContent = "Ad opened in background. Keep page active!";
+    adInfo.textContent = "Ad opened. Keep page active!";
     if (tg) { tg.openLink(rawCode); } else { window.open(rawCode, '_blank'); }
     runAdCountdown();
   } else {
@@ -433,17 +504,15 @@ async function startTask(taskId) {
       const wrapperDiv = document.createElement('div');
       wrapperDiv.innerHTML = rawCode;
       adSdkWrapper.appendChild(wrapperDiv);
-      
       wrapperDiv.querySelectorAll('script').forEach(oldScript => {
         const newScript = document.createElement('script');
         Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
         newScript.appendChild(document.createTextNode(oldScript.innerHTML));
         oldScript.parentNode.replaceChild(newScript, oldScript);
       });
-
       setTimeout(() => {
         adSpinner.style.display = 'none';
-        adInfo.textContent = "Ad playing natively. Complete the countdown!";
+        adInfo.textContent = "Complete the countdown!";
         runAdCountdown();
       }, 1500);
     } catch (e) {
@@ -469,7 +538,6 @@ function runAdCountdown() {
 
 async function triggerRewardOnServer() {
   adContainer.style.display = 'none';
-  
   let { data: currentTask } = await supabaseClient.from('tasks').select('coins').eq('id', currentTaskId).single();
   let rewardCoins = currentTask ? currentTask.coins : 10;
   
@@ -482,10 +550,17 @@ async function triggerRewardOnServer() {
   if (error) {
     alert(error.message);
   } else {
+    let today = new Date().toISOString().slice(0, 10);
+    let { data: log } = await supabaseClient.from('user_task_logs').select('count').eq('tg_id', currentUser.id).eq('task_id', currentTaskId).eq('date', today).maybeSingle();
+    if (log) {
+      await supabaseClient.from('user_task_logs').update({ count: log.count + 1 }).eq('tg_id', currentUser.id).eq('task_id', currentTaskId).eq('date', today);
+    } else {
+      await supabaseClient.from('user_task_logs').insert([{ tg_id: currentUser.id, task_id: currentTaskId, date: today, count: 1 }]);
+    }
+
     let { data: updatedUser } = await supabaseClient.from('users').select('balance').eq('tg_id', currentUser.id).single();
     if (updatedUser) {
       currentUser.balance = updatedUser.balance;
-      currentUser.daily_ad_count += 1;
       updateUI();
       alert(`+${rewardCoins} Coins credited safely!`);
     }
@@ -494,16 +569,23 @@ async function triggerRewardOnServer() {
   loadTasks();
 }
 
-// UI Setup Engine
 function updateUI() {
   balanceDisplay.textContent = `${currentUser.balance} Coins`;
   withdrawBalanceDisplay.textContent = `${currentUser.balance} Coins`;
   referralCountDisplay.textContent = currentUser.referral_count || 0;
   referralBonusDisplay.textContent = `${(currentUser.referral_count || 0) * (appConfig.refBonus || 500)} Coins`;
   
-  const canWithdraw = currentUser.balance >= (appConfig.minWithdraw || 10000);
+  const minWithdraw = appConfig.minWithdraw || 10000;
+  const minRefer = appConfig.minReferReq || 5;
+  const userReferrals = currentUser.referral_count || 0;
+
+  document.getElementById('minWithdrawLabel').innerHTML = `💸 সর্বনিম্ন উইথড্রাল লিমিট: <strong>${minWithdraw} Coins</strong>`;
+  document.getElementById('minReferLabel').innerHTML = `👥 উইথড্র করতে রেফার প্রয়োজন: <strong>${userReferrals}/${minRefer}টি</strong>`;
+  document.getElementById('minReferLabel').style.color = userReferrals >= minRefer ? "var(--success)" : "var(--danger)";
+  
+  const canWithdraw = (currentUser.balance >= minWithdraw) && (userReferrals >= minRefer);
   mainWithdrawBtn.disabled = !canWithdraw;
-  mainWithdrawBtn.textContent = canWithdraw ? `Withdraw Balance` : `Reach ${appConfig.minWithdraw || 10000} Coins to Withdraw`;
+  mainWithdrawBtn.textContent = canWithdraw ? `Withdraw Balance` : `কন্ডিশন পূর্ণ করুন (মিনিমাম কয়েন ও রেফার)`;
   finalWithdrawBtn.disabled = !canWithdraw;
   
   paymentMethodSelect.innerHTML = '<option value="">Select Method</option>';
@@ -529,7 +611,6 @@ async function loadUserWithdrawHistory() {
   if (!currentUser.id) return;
   let { data: history } = await supabaseClient.from('withdraws').select('*').eq('tg_id', currentUser.id).order('created_at', {ascending: false});
   userWithdrawHistoryList.innerHTML = '';
-  
   if (history && history.length > 0) {
     history.forEach(h => {
       const item = document.createElement('div');
@@ -538,11 +619,7 @@ async function loadUserWithdrawHistory() {
       if(h.status === 'approved') statusColor = 'var(--success)';
       if(h.status === 'rejected') statusColor = 'var(--danger)';
       if(h.status === 'pending') statusColor = 'var(--accent)';
-      
-      item.innerHTML = `
-        <div>⚙️ ${h.amount} Coins (${h.method})</div>
-        <div style="color:${statusColor}; font-weight:bold; font-size:13px;">${h.status.toUpperCase()}</div>
-      `;
+      item.innerHTML = `<div>⚙️ ${h.amount} Coins (${h.method})</div><div style="color:${statusColor}; font-weight:bold;">${h.status.toUpperCase()}</div>`;
       userWithdrawHistoryList.appendChild(item);
     });
   } else {
@@ -550,17 +627,19 @@ async function loadUserWithdrawHistory() {
   }
 }
 
-// Flexible Withdrawal Handler
 async function handleWithdrawal() {
   const method = paymentMethodSelect.value;
   const address = paymentAddressInput.value.trim();
   const amountInput = document.getElementById('withdrawAmount').value;
   const withdrawAmount = parseInt(amountInput);
+  const minRefer = appConfig.minReferReq || 5;
+  const userReferrals = currentUser.referral_count || 0;
   
   if(!method || !address || !amountInput) return alert('Please fill up details');
   if(isNaN(withdrawAmount) || withdrawAmount <= 0) return alert('Please enter valid amount');
   if(withdrawAmount < appConfig.minWithdraw) return alert(`Minimum withdraw is ${appConfig.minWithdraw} Coins`);
   if(currentUser.balance < withdrawAmount) return alert('Insufficient Balance');
+  if(userReferrals < minRefer) return alert(`উইথড্র করতে কমপক্ষে ${minRefer} টি সফল রেফার প্রয়োজন!`);
   
   const { error: balError } = await supabaseClient.from('users').update({ balance: currentUser.balance - withdrawAmount }).eq('tg_id', currentUser.id);
   
@@ -573,7 +652,6 @@ async function handleWithdrawal() {
       address: address,
       status: 'pending'
     }]);
-    
     alert('Withdrawal request placed successfully!');
     currentUser.balance -= withdrawAmount;
     document.getElementById('withdrawAmount').value = '';
@@ -586,23 +664,27 @@ async function handleWithdrawal() {
   }
 }
 
-// Channel Requirement Persistence
-function checkChannelJoin() {
-  if (appConfig.channelReqEnabled && !ADMIN_IDS.includes(currentUser.id) && !ADMIN_IDS.includes(String(currentUser.id)) && !currentUser.channel_verified) {
-    const txt = appConfig.channels && appConfig.channels.length > 0 ? `Please join: ${appConfig.channels.join(', ')}` : 'Join our channel to access app.';
-    document.getElementById('channelJoinText').textContent = txt;
-    channelJoinModal.style.display = 'flex';
-  }
-}
-
 document.getElementById('verifyJoinBtn').addEventListener('click', async () => {
   if (supabaseClient && currentUser.id) {
+    if (appConfig.channels && appConfig.channels.length > 0) {
+      document.getElementById('verifyJoinBtn').textContent = "Checking Status...";
+      document.getElementById('verifyJoinBtn').disabled = true;
+      const hasJoined = await verifyTelegramGroupJoin(currentUser.id, appConfig.channels[0]);
+      if (!hasJoined) {
+        document.getElementById('verifyJoinBtn').textContent = "I've Joined";
+        document.getElementById('verifyJoinBtn').disabled = false;
+        return alert("আপনি এখনো গ্রুপে জয়েন করেননি! ❌");
+      }
+    }
     const { error } = await supabaseClient.from('users').update({ channel_verified: true }).eq('tg_id', currentUser.id);
     if(!error) {
       currentUser.channel_verified = true;
       channelJoinModal.style.display = 'none';
-      alert('Channel status verified successfully!');
+      alert('Channel status verified successfully! 🎉');
       updateUI();
+      if (!currentUser.ref_code_used) {
+        showReferralInputModal();
+      }
     } else {
       alert('Verification error. Try again.');
     }
@@ -611,26 +693,87 @@ document.getElementById('verifyJoinBtn').addEventListener('click', async () => {
   }
 });
 
+function showReferralInputModal() {
+  if(!document.getElementById('referralInputModal')){
+    const modalDiv = document.createElement('div');
+    modalDiv.id = "referralInputModal";
+    modalDiv.style = "position:fixed;inset:0;background:rgba(2,6,23,0.95);z-index:1350;display:flex;align-items:center;justify-content:center;padding:15px;";
+    modalDiv.innerHTML = `
+      <div class="card" style="max-width:400px;text-align:center;width:100%">
+        <h3>🎁 Referral Reward!</h3>
+        <p class="small-muted">কারো রেফার কোড আছে কি? থাকলে নিচে বসিয়ে বাড়তি বোনাস রিওয়ার্ড নিন!</p>
+        <div style="margin: 15px 0;">
+          <input type="number" id="inputReferralId" placeholder="Referral ID (e.g., 5371043649)" style="text-align:center; font-size:16px;">
+        </div>
+        <div style="display:flex; gap:10px;">
+          <button class="btn" id="submitReferralBtn" style="background:var(--success); flex:1;">Submit</button>
+          <button class="btn" id="skipReferralBtn" style="background:var(--border); color:var(--muted); flex:1;">Skip</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modalDiv);
+    document.getElementById('skipReferralBtn').addEventListener('click', async () => {
+      await supabaseClient.from('users').update({ ref_code_used: true }).eq('tg_id', currentUser.id);
+      currentUser.ref_code_used = true;
+      document.getElementById('referralInputModal').style.display = 'none';
+    });
+    document.getElementById('submitReferralBtn').addEventListener('click', handleReferralSubmit);
+  } else {
+    document.getElementById('referralInputModal').style.display = 'flex';
+  }
+}
+
+async function handleReferralSubmit() {
+  const refIdInput = document.getElementById('inputReferralId').value.trim();
+  const referrerId = parseInt(refIdInput);
+  if (!referrerId || isNaN(referrerId)) return alert("দয়া করে সঠিক রেফারেল আইডি দিন!");
+  if (referrerId === currentUser.id) return alert("আপনি নিজের আইডি ব্যবহার করতে পারবেন না! ❌");
+  
+  document.getElementById('submitReferralBtn').disabled = true;
+  document.getElementById('submitReferralBtn').textContent = "Verifying...";
+  
+  let { data: referrerUser } = await supabaseClient.from('users').select('tg_id, referral_count').eq('tg_id', referrerId).maybeSingle();
+  if (!referrerUser) {
+    document.getElementById('submitReferralBtn').disabled = false;
+    document.getElementById('submitReferralBtn').textContent = "Submit";
+    return alert("রেফারেল আইডিটি ভুল! ❌");
+  }
+  
+  const referrerReward = appConfig.refBonus || 500;
+  const refereeReward = appConfig.refeeBonus || 200;
+  
+  await supabaseClient.rpc('secure_add_coins', { user_tg_id: referrerId, task_id_param: 0, reward_coins: referrerReward });
+  await supabaseClient.from('users').update({ referral_count: (referrerUser.referral_count || 0) + 1 }).eq('tg_id', referrerId);
+  
+  const { error } = await supabaseClient.from('users').update({ balance: currentUser.balance + refereeReward, referred_by: referrerId, ref_code_used: true }).eq('tg_id', currentUser.id);
+  if (!error) {
+    currentUser.balance += refereeReward;
+    currentUser.ref_code_used = true;
+    updateUI();
+    alert(`🎉 সফল রেফার! আপনি পেয়েছেন +${refereeReward} এবং আপনার বন্ধু পেয়েছেন +${referrerReward} কয়েন!`);
+  } else {
+    alert("ত্রুটি দেখা দিয়েছে।");
+  }
+  document.getElementById('referralInputModal').style.display = 'none';
+}
+
 document.getElementById('joinChannelBtn').addEventListener('click', () => {
   if (appConfig.channels && appConfig.channels.length > 0) {
     window.open(`https://t.me/${appConfig.channels[0].replace('@','')}`, '_blank');
   }
 });
 
-// ======= ADMIN BACKEND CONFIGS =======
+// ======= ADMIN ACTION HANDLERS =======
 document.getElementById('addTaskBtn').addEventListener('click', async () => {
   const title = document.getElementById('newTaskTitle').value.trim();
   const coins = parseInt(document.getElementById('newTaskCoins').value);
   const type = document.getElementById('newTaskType').value;
   const sdk_code = document.getElementById('newTaskSdk').value.trim();
 
-  if(!title || !coins || !sdk_code) return alert('Please fill up all details!');
-
+  if(!title || !coins || !sdk_code) return alert('Please fill details!');
   const { error } = await supabaseClient.from('tasks').insert([{ title, coins, type, sdk_code, enabled: true }]);
-  if(error) {
-    alert('Error adding task: ' + error.message);
-  } else {
-    alert('Task synchronized safely!');
+  if(!error) {
+    alert('Task synchronized!');
     document.getElementById('newTaskTitle').value = '';
     document.getElementById('newTaskCoins').value = '';
     document.getElementById('newTaskSdk').value = '';
@@ -646,63 +789,53 @@ async function loadAdminTasks() {
     tasksData.forEach(t => {
       const div = document.createElement('div');
       div.className = 'leaderboard-item';
-      div.innerHTML = `<div><strong>${t.title}</strong> (${t.coins} coins)</div>
-                       <button class="btn small" style="background:var(--danger);" onclick="deleteTask(${t.id})">Delete</button>`;
+      div.innerHTML = `<div><strong>${t.title}</strong> (${t.coins} coins)</div><button class="btn small" style="background:var(--danger);" onclick="deleteTask(${t.id})">Delete</button>`;
       adminTasksList.appendChild(div);
     });
   }
 }
 
 window.deleteTask = async function(id) {
-  if(confirm('Are you sure you want to delete this task?')) {
+  if(confirm('Delete this task?')) {
     const { error } = await supabaseClient.from('tasks').delete().eq('id', id);
-    if(!error) { alert('Task deleted!'); await loadTasks(); await loadAdminTasks(); }
+    if(!error) { await loadTasks(); await loadAdminTasks(); }
   }
 }
 
 document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
   const refBonus = parseInt(document.getElementById('setRefBonus').value) || appConfig.refBonus;
+  const refeeBonus = parseInt(document.getElementById('setRefereeBonus').value) || appConfig.refeeBonus;
+  const minReferReq = parseInt(document.getElementById('setMinReferReq').value) || appConfig.minReferReq;
   const minWithdraw = parseInt(document.getElementById('setMinWithdraw').value) || appConfig.minWithdraw;
   const coinsPerAd = parseInt(document.getElementById('setCoinsPerAd').value) || appConfig.coinsPerAd;
   const dailyAdLimit = parseInt(document.getElementById('setDailyLimit').value) || appConfig.dailyAdLimit;
   const coinToBdtRate = parseFloat(document.getElementById('setCoinBdtRate').value) || appConfig.coinToBdtRate;
 
-  appConfig = { ...appConfig, refBonus, minWithdraw, coinsPerAd, dailyAdLimit, coinToBdtRate };
-
+  appConfig = { ...appConfig, refBonus, refeeBonus, minReferReq, minWithdraw, coinsPerAd, dailyAdLimit, coinToBdtRate };
   const { error } = await supabaseClient.from('config').update({ settings: appConfig }).eq('id', 1);
-  if(!error) { alert('Settings saved successfully!'); updateUI(); } else { alert('Error saving: ' + error.message); }
+  if(!error) { alert('Settings saved successfully!'); updateUI(); }
 });
 
 async function loadWithdrawalRequests() {
   let { data: requests } = await supabaseClient.from('withdraws').select('*').eq('status', 'pending').order('created_at', {ascending: false});
   withdrawalRequestsList.innerHTML = '';
-  
   if(requests && requests.length > 0) {
     requests.forEach(r => {
       const div = document.createElement('div');
       div.className = 'card';
       div.innerHTML = `
-        <div class="small-muted">User ID: ${r.tg_id} (@${r.username})</div>
+        <div class="small-muted">User ID: ${r.tg_id}</div>
         <div style="margin:6px 0;"><strong>${r.amount} Coins</strong> via <span class="badge">${r.method}</span></div>
-        <div class="small-muted" style="display:flex; align-items:center; gap:8px; margin-bottom: 4px;">
-          Account: <strong>${r.address}</strong>
-          <button class="btn small" style="padding:2px 6px; font-size:11px; background:#475569;" onclick="copyToClipboard('${r.address}')">Copy</button>
-        </div>
+        <div class="small-muted">Account: <strong>${r.address}</strong></div>
         <div style="margin-top:8px; display:flex; gap:8px;">
           <button class="btn small" style="background:var(--success);" onclick="updateWithdrawStatus(${r.id}, 'approved')">Approve</button>
           <button class="btn small" style="background:var(--danger);" onclick="updateWithdrawStatus(${r.id}, 'rejected', ${r.tg_id}, ${r.amount})">Reject</button>
-        </div>
-      `;
+        </div>`;
       withdrawalRequestsList.appendChild(div);
     });
   } else {
-    withdrawalRequestsList.innerHTML = '<div class="small-muted">No pending requests found.</div>';
+    withdrawalRequestsList.innerHTML = '<div class="small-muted">No pending requests.</div>';
   }
-}
-
-window.copyToClipboard = function(text) {
-  navigator.clipboard.writeText(text);
-  alert('Copied: ' + text);
 }
 
 window.updateWithdrawStatus = async function(id, status, user_tg_id = null, amount = 0) {
@@ -722,12 +855,7 @@ document.getElementById('addPaymentMethodBtn').addEventListener('click', async (
   if(!appConfig.paymentMethods) appConfig.paymentMethods = [];
   appConfig.paymentMethods.push(newMethod);
   const { error } = await supabaseClient.from('config').update({ settings: appConfig }).eq('id', 1);
-  if(!error) {
-    alert('Method added!');
-    document.getElementById('newPaymentMethod').value = '';
-    updateUI();
-    loadPaymentMethodsAdmin();
-  }
+  if(!error) { document.getElementById('newPaymentMethod').value = ''; updateUI(); loadPaymentMethodsAdmin(); }
 });
 
 function loadPaymentMethodsAdmin() {
@@ -736,7 +864,7 @@ function loadPaymentMethodsAdmin() {
     appConfig.paymentMethods.forEach((m, idx) => {
       const li = document.createElement('div');
       li.className = 'leaderboard-item';
-      li.innerHTML = `<span>${m}</span> <button class="btn small" style="background:var(--danger); padding:4px 6px;" onclick="deleteMethod(${idx})">X</button>`;
+      li.innerHTML = `<span>${m}</span> <button class="btn small" style="background:var(--danger);" onclick="deleteMethod(${idx})">X</button>`;
       paymentMethodsList.appendChild(li);
     });
   }
@@ -744,8 +872,8 @@ function loadPaymentMethodsAdmin() {
 
 window.deleteMethod = async function(idx) {
   appConfig.paymentMethods.splice(idx, 1);
-  const { error } = await supabaseClient.from('config').update({ settings: appConfig }).eq('id', 1);
-  if(!error) { updateUI(); loadPaymentMethodsAdmin(); }
+  await supabaseClient.from('config').update({ settings: appConfig }).eq('id', 1);
+  updateUI(); loadPaymentMethodsAdmin();
 }
 
 document.getElementById('addChannelBtn').addEventListener('click', async () => {
@@ -755,7 +883,7 @@ document.getElementById('addChannelBtn').addEventListener('click', async () => {
   if(!appConfig.channels.includes(channel)) {
     appConfig.channels.push(channel);
     const { error } = await supabaseClient.from('config').update({ settings: appConfig }).eq('id', 1);
-    if(!error) { alert('Channel added!'); document.getElementById('newChannelName').value = ''; loadChannelsAdmin(); }
+    if(!error) { document.getElementById('newChannelName').value = ''; loadChannelsAdmin(); }
   }
 });
 
@@ -772,86 +900,65 @@ function loadChannelsAdmin() {
     appConfig.channels.forEach((c, idx) => {
       const li = document.createElement('li');
       li.style.margin = '4px 0';
-      li.innerHTML = `${c} <button class="btn small" style="background:var(--danger); padding:2px 4px; font-size:11px;" onclick="deleteChannel(${idx})">Remove</button>`;
+      li.innerHTML = `${c} <button class="btn small" style="background:var(--danger);" onclick="deleteChannel(${idx})">Remove</button>`;
       channelList.appendChild(li);
     });
   }
 }
-
 window.deleteChannel = async function(idx) {
   appConfig.channels.splice(idx, 1);
   const { error } = await supabaseClient.from('config').update({ settings: appConfig }).eq('id', 1);
   if(!error) { loadChannelsAdmin(); }
-  }
+}
 
-
-
-  // Navigation View Sync Router
 function showView(id){
   document.querySelectorAll('.view').forEach(v=>v.style.display='none');
   const el = document.getElementById(id); if (el) el.style.display='block';
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   
   if (id==='home-view') document.getElementById('navHome').classList.add('active');
-  if (id==='withdraw-view') {
-    document.getElementById('navWithdraw').classList.add('active');
-    loadUserWithdrawHistory(); 
-  }
+  if (id==='withdraw-view') { document.getElementById('navWithdraw').classList.add('active'); loadUserWithdrawHistory(); }
   if (id==='referral-view') document.getElementById('navRefer').classList.add('active');
   if (id==='leaderboard-view') { document.getElementById('navLeaderboard').classList.add('active'); loadLeaderboards(); }
   if (id==='admin-view') {
     document.getElementById('navAdmin').classList.add('active');
-    loadAdminTasks();
-    loadWithdrawalRequests();
-    loadPaymentMethodsAdmin();
-    loadChannelsAdmin();
-    
+    loadAdminTasks(); loadWithdrawalRequests(); loadPaymentMethodsAdmin(); loadChannelsAdmin();
     document.getElementById('setRefBonus').value = appConfig.refBonus || 500;
+    document.getElementById('setRefereeBonus').value = appConfig.refeeBonus || 200;
+    document.getElementById('setMinReferReq').value = appConfig.minReferReq || 5;
     document.getElementById('setMinWithdraw').value = appConfig.minWithdraw || 10000;
     document.getElementById('setCoinsPerAd').value = appConfig.coinsPerAd || 10;
-    document.getElementById('setDailyLimit').value = appConfig.dailyAdLimit || 100;
+    document.getElementById('setDailyLimit').value = appConfig.dailyAdLimit || 5;
     document.getElementById('setCoinBdtRate').value = appConfig.coinToBdtRate || 0.01;
   }
 }
 
-// Render Top Earners Dynamic Leaderboard
 async function loadLeaderboards() {
   try {
     let { data: earners } = await supabaseClient.from('users').select('first_name, username, balance').order('balance', {ascending: false}).limit(10);
     topEarnersList.innerHTML = '';
-    
     if(earners) {
       earners.forEach((u, index) => {
         const d = document.createElement('div'); 
         d.className='leaderboard-item';
-        d.style.display = 'flex'; d.style.alignItems = 'center'; d.style.justifyContent = 'space-between';
-        
         let rankBadge = `#${index + 1}`;
         if(index === 0) rankBadge = '🥇';
         if(index === 1) rankBadge = '🥈';
         if(index === 2) rankBadge = '🥉';
-
         const firstChar = u.first_name ? u.first_name.charAt(0).toUpperCase() : '?';
-        const avatarHtml = `<div style="width:32px; height:32px; background:var(--accent); border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#fff; margin-right:10px;">${firstChar}</div>`;
-
         d.innerHTML = `
           <div style="display:flex; align-items:center;">
             <span style="font-weight:bold; margin-right:12px; width:24px; color:var(--muted);">${rankBadge}</span>
-            ${avatarHtml}
-            <div>
-              <strong>${u.first_name}</strong>
-              <div class="small-muted">@${u.username || 'unknown'}</div>
-            </div>
+            <div style="width:32px; height:32px; background:var(--accent); border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#fff; margin-right:10px;">${firstChar}</div>
+            <div><strong>${u.first_name}</strong><div class="small-muted">@${u.username || 'unknown'}</div></div>
           </div>
-          <div style="font-weight:bold; color:var(--success);">${u.balance} Coins</div>
-        `;
+          <div style="font-weight:bold; color:var(--success);">${u.balance} Coins</div>`;
         topEarnersList.appendChild(d);
       });
     }
-  } catch(e) { console.error(e); }
+  } catch(e) {}
 }
 
-// Event Watchers
 document.getElementById('navHome').addEventListener('click', ()=>showView('home-view'));
 document.getElementById('navWithdraw').addEventListener('click', ()=>showView('withdraw-view'));
 document.getElementById('navRefer').addEventListener('click', ()=>showView('referral-view'));
@@ -868,3 +975,7 @@ document.addEventListener('DOMContentLoaded', init);
 </script>
 </body>
 </html>
+
+
+
+      
