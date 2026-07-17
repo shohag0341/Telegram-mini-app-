@@ -108,7 +108,7 @@
       </div>
     </div>
 
-    <div id="referral-view" class="view" style="display:none">
+        <div id="referral-view" class="view" style="display:none">
       <div class="card">
         <h2>Referrals</h2>
         <div class="grid">
@@ -122,15 +122,35 @@
           </div>
         </div>
 
-        <div style="margin-top:12px">
-          <div class="small-muted">Your Referral Link (Your TG ID is Referral ID)</div>
+        <!-- শুধুমাত্র রেফারেল আইডি কপি করার নতুন অপশন -->
+        <div style="margin-top:15px; background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; border: 1px solid var(--border);">
+          <div class="small-muted">Your Referral ID (শুধু আইডি কপি করুন)</div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px;">
+            <strong id="myReferralIdText" style="font-size:18px; color:var(--accent);">loading...</strong>
+            <button id="copyOnlyIdBtn" class="btn small" style="width:auto;">Copy ID</button>
+          </div>
+        </div>
+
+        <div style="margin-top:15px">
+          <div class="small-muted">Your Referral Link</div>
           <div style="position:relative;background:#071028;padding:10px;border-radius:8px;border:1px dashed var(--border);margin-top:8px">
             <div id="referralLinkText" style="word-break:break-all">loading...</div>
-            <button id="copyReferralBtn" class="btn small" style="position:absolute;right:10px;top:10px">Copy</button>
+            <button id="copyReferralBtn" class="btn small" style="position:absolute;right:10px;top:10px">Copy Link</button>
           </div>
         </div>
       </div>
-    </div>
+
+      <!-- ম্যানুয়ালি রেফার কোড/আইডি বসানোর নতুন বক্স (ইউজার আগে ব্যবহার না করে থাকলে দেখাবে) -->
+      <div class="card" id="manualReferCard" style="display:none;">
+        <h3>🎁 Enter Referral ID</h3>
+        <p class="small-muted">আপনাকে কেউ রেফার করে থাকলে তার Referral ID-টি নিচে বসিয়ে বোনাস বুঝে নিন!</p>
+        <div style="margin: 12px 0; display:flex; gap:8px;">
+          <input type="number" id="manualRefInput" placeholder="Enter Friend's ID" style="text-align:center; font-size:16px; flex:2;">
+          <button class="btn" id="manualRefSubmitBtn" style="flex:1; background:var(--success);">Claim</button>
+        </div>
+      </div>
+        </div>
+    
 
     <div id="leaderboard-view" class="view" style="display:none">
       <div class="card">
@@ -168,6 +188,9 @@
 
 
 
+
+
+      
 
       <div class="card admin-section">
         <h3>Channel Requirements</h3>
@@ -911,6 +934,10 @@ window.deleteChannel = async function(idx) {
   if(!error) { loadChannelsAdmin(); }
 }
 
+
+
+  
+
 function showView(id){
   document.querySelectorAll('.view').forEach(v=>v.style.display='none');
   const el = document.getElementById(id); if (el) el.style.display='block';
@@ -918,7 +945,61 @@ function showView(id){
   
   if (id==='home-view') document.getElementById('navHome').classList.add('active');
   if (id==='withdraw-view') { document.getElementById('navWithdraw').classList.add('active'); loadUserWithdrawHistory(); }
-  if (id==='referral-view') document.getElementById('navRefer').classList.add('active');
+  
+  // ==================== REFERRAL VIEW UPDATE ====================
+  if (id==='referral-view') {
+    document.getElementById('navRefer').classList.add('active');
+    
+    // ইউজার যদি ইতিমধ্যে কোনো রেফার কোড ব্যবহার করে থাকে, তবে ইনপুট কার্ডটি লুকানো থাকবে
+    const manualCard = document.getElementById('manualReferCard');
+    if (currentUser.ref_code_used) {
+      if (manualCard) manualCard.style.display = 'none';
+    } else {
+      if (manualCard) {
+        manualCard.style.display = 'block';
+        
+        // ম্যানুয়াল সাবমিট বাটনে ক্লিক ইভেন্ট সেট করা
+        document.getElementById('manualRefSubmitBtn').onclick = async () => {
+          const inputVal = document.getElementById('manualRefInput').value.trim();
+          const referrerId = parseInt(inputVal);
+          
+          if (!referrerId || isNaN(referrerId)) return alert("দয়া করে সঠিক রেফারেল আইডি দিন!");
+          if (referrerId === currentUser.id) return alert("আপনি নিজের আইডি ব্যবহার করতে পারবেন না! ❌");
+          
+          document.getElementById('manualRefSubmitBtn').disabled = true;
+          document.getElementById('manualRefSubmitBtn').textContent = "Checking...";
+          
+          let { data: referrerUser } = await supabaseClient.from('users').select('tg_id, referral_count').eq('tg_id', referrerId).maybeSingle();
+          if (!referrerUser) {
+            document.getElementById('manualRefSubmitBtn').disabled = false;
+            document.getElementById('manualRefSubmitBtn').textContent = "Claim";
+            return alert("রেফারেল আইডিটি সিস্টেমে পাওয়া যায়নি! ❌");
+          }
+          
+          const referrerReward = appConfig.refBonus || 500;
+          const refereeReward = appConfig.refeeBonus || 200;
+          
+          await supabaseClient.rpc('secure_add_coins', { user_tg_id: referrerId, task_id_param: 0, reward_coins: referrerReward });
+          await supabaseClient.from('users').update({ referral_count: (referrerUser.referral_count || 0) + 1 }).eq('tg_id', referrerId);
+          
+          const { error } = await supabaseClient.from('users').update({ balance: currentUser.balance + refereeReward, referred_by: referrerId, ref_code_used: true }).eq('tg_id', currentUser.id);
+          if (!error) {
+            currentUser.balance += refereeReward;
+            currentUser.ref_code_used = true;
+            updateUI();
+            manualCard.style.display = 'none'; // সফল হলে ইনপুট বক্সটি হাইড করে দেওয়া হবে
+            alert(`🎉 সফল রেফার! আপনি পেয়েছেন +${refereeReward} এবং আপনার বন্ধু পেয়েছেন +${referrerReward} কয়েন!`);
+          } else {
+            alert("ত্রুটি দেখা দিয়েছে।");
+            document.getElementById('manualRefSubmitBtn').disabled = false;
+            document.getElementById('manualRefSubmitBtn').textContent = "Claim";
+          }
+        };
+      }
+    }
+  }
+  // ==============================================================
+
   if (id==='leaderboard-view') { document.getElementById('navLeaderboard').classList.add('active'); loadLeaderboards(); }
   if (id==='admin-view') {
     document.getElementById('navAdmin').classList.add('active');
@@ -932,6 +1013,9 @@ function showView(id){
     document.getElementById('setCoinBdtRate').value = appConfig.coinToBdtRate || 0.01;
   }
 }
+  
+
+    
 
 async function loadLeaderboards() {
   try {
