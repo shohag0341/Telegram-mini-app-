@@ -1122,6 +1122,82 @@ function generateReferralLink(){
 setTimeout(() => {
   generateReferralLink();
 }, 1000);
+
+
+
+
+
+
+
+
+  // হোম পেইজের উইথড্র বাটনে ক্লিক করলে উইথড্র ভিউ ওপেন করার লজিক
+const homeWithBtn = document.querySelector('button[onclick*="withdraw-view"]') || document.getElementById('homeWithdrawBtn') || document.querySelector('.card button');
+if (homeWithBtn) {
+  homeWithBtn.removeAttribute('onclick'); // আগের পুরনো onclick থাকলে তা রিমুভ করবে
+  homeWithBtn.addEventListener('click', () => {
+    showView('withdraw-view');
+  });
+}
+
+
+
+
+
+  async function loadWithdrawalRequests() {
+  const container = document.getElementById('adminWithdrawalRequestsList');
+  if (!container) return;
+  container.innerHTML = "Loading...";
+
+  let { data: reqs, error } = await supabaseClient
+    .from('withdrawals')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error || !reqs) return container.innerHTML = "Error loading requests.";
+  if (reqs.length === 0) return container.innerHTML = "No withdrawal requests.";
+
+  container.innerHTML = "";
+  reqs.forEach(r => {
+    const div = document.createElement('div');
+    div.className = "card";
+    div.style.marginBottom = "10px";
+    div.style.padding = "12px";
+    div.style.border = "1px solid var(--border)";
+
+    // প্রতিটি রিকোয়েস্টের ইউনিক আইডি জেনারেট করছি কপির সুবিধার জন্য
+    const numId = `accNum_${r.id}`;
+
+    div.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <strong>User ID: ${r.tg_id}</strong>
+        <span class="badge ${r.status === 'pending' ? 'orange' : r.status === 'approved' ? 'green' : 'red'}">${r.status}</span>
+      </div>
+      <div style="margin-top:6px;">Method: <b>${r.method}</b> | Amount: <b>${r.amount_bdt} BDT</b> (${r.amount_coins} Coins)</div>
+      
+      <!-- অ্যাকাউন্ট নাম্বার এবং কপি বাটন যুক্ত করা হলো -->
+      <div style="margin-top:8px; display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.03); padding:8px; border-radius:6px;">
+        <span style="font-size:13px; color:var(--text-muted);">Acc:</span>
+        <strong id="${numId}" style="color:var(--accent); font-size:15px;">${r.account_number}</strong>
+        <button class="btn small" style="padding:2px 8px; font-size:11px; width:auto; margin-left:auto;" onclick="copyAdminAccText('${r.account_number}')">Copy</button>
+      </div>
+
+      ${r.status === 'pending' ? `
+        <div style="margin-top:10px; display:flex; gap:8px;">
+          <button class="btn small" style="background:var(--success);" onclick="updateWithdrawStatus(${r.id}, 'approved', ${r.tg_id})">Approve</button>
+          <button class="btn small" style="background:var(--danger);" onclick="updateWithdrawStatus(${r.id}, 'rejected', ${r.tg_id}, ${r.amount_coins})">Reject</button>
+        </div>
+      ` : ''}
+    `;
+    container.appendChild(div);
+  });
+}
+
+// কপি করার জন্য গ্লোবাল হেল্পার ফাংশন
+window.copyAdminAccText = function(text) {
+  navigator.clipboard.writeText(text);
+  alert('Account number copied! 📋: ' + text);
+};
+  
   
 
 
