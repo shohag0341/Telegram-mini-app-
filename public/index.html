@@ -1057,9 +1057,35 @@ document.getElementById('finalWithdrawBtn').addEventListener('click', handleWith
 document.getElementById('adCloseBtn').addEventListener('click', () => { clearInterval(adTimer); adContainer.style.display='none'; currentTaskId=null; });
 
 document.addEventListener('DOMContentLoaded', init);
+
+
+
+
+
+
+
+  
+document.getElementById('finalWithdrawBtn').addEventListener('click', handleWithdrawal);
+document.getElementById('adCloseBtn').addEventListener('click', () => { clearInterval(adTimer); adContainer.style.display='none'; currentTaskId=null; });
+
+// ব্যাকআপ হিসেবে এখানে আইডি লোড করার ফাংশনটি দিয়ে দিলাম
+setTimeout(() => {
+  if(typeof generateReferralLink === 'function') {
+    generateReferralLink();
+  }
+}, 1000);
+
+document.addEventListener('DOMContentLoaded', init);
 </script>
 </body>
 </html>
+
+
+
+
+
+  
+
 
 
 
