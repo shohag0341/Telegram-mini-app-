@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
-  <title>EarnUSDT — WebApp</title>
+  <title>EarnUSDT — Advanced Edition</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
@@ -18,7 +18,7 @@
     p.lead{color:var(--muted);margin:6px 0 0 0}
     .btn{width:100%;padding:12px 14px;border-radius:10px;border:none;background:linear-gradient(135deg,var(--accent),#1d4ed8);color:#fff;font-weight:600;cursor:pointer}
     .btn:disabled{background:#1e293b;color:var(--muted);cursor:not-allowed;}
-    .btn.small{width:auto;padding:8px 10px;font-size:14px}
+    .btn.small{width:auto;padding:6px 10px;font-size:13px}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     .footer-nav{position:fixed;left:0;right:0;bottom:0;padding:10px;background:#0b1220;border-top:1px solid var(--border);display:flex;justify-content:space-around;z-index:1000;}
     .nav-btn{background:none;border:none;color:var(--muted);font-weight:600;cursor:pointer}
@@ -27,12 +27,11 @@
     label{font-size:13px;color:var(--muted);display:block;margin-bottom:6px}
     .small-muted{font-size:13px;color:var(--muted)}
     .leaderboard-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed rgba(255,255,255,0.02)}
-    .admin-section{margin-bottom:12px}
-    .badge{display:inline-block;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,0.03);color:var(--muted);font-size:13px}
-    #adContainer, #channelJoinModal{display:none}
+    #adContainer, #channelJoinModal, #referralInputModal{display:none;position:fixed;inset:0;background:rgba(2,6,23,0.95);z-index:1300;align-items:center;justify-content:center;padding:15px;}
     .loading-spinner{border:4px solid #334155;border-top:4px solid var(--accent);border-radius:50%;width:36px;height:36px;animation:spin 1s linear infinite;margin:8px auto}
     @keyframes spin{to{transform:rotate(360deg)}}
     .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    .max-btn{background:var(--accent);border:none;color:#fff;padding:4px 8px;border-radius:4px;font-size:11px;cursor:pointer;margin-left:6px;}
   </style>
 </head>
 <body>
@@ -40,7 +39,7 @@
     <div class="topbar">
       <div>
         <h1>EarnUSDT</h1>
-        <p class="lead">Watch ads • Earn coins • Withdraw</p>
+        <p class="lead">Watch ads • Earn coins</p>
       </div>
       <div style="text-align:right">
         <div id="userName" class="small-muted">—</div>
@@ -53,23 +52,18 @@
 
 
 
+
         <!-- HOME VIEW -->
     <div id="home-view" class="view">
       <div class="card">
         <h2>Balance</h2>
         <div id="balanceDisplay" style="font-size:32px;font-weight:700;margin:10px 0">0 Coins</div>
-        <button class="btn" id="mainWithdrawBtn" disabled>Loading Balance...</button>
-      </div>
-
-      <!-- Live Ads Limit & Task Tracker -->
-      <div class="card">
-        <h3>Daily Ads Progress</h3>
-        <div id="liveAdTracker" style="font-size:18px; font-weight:bold; margin-bottom:12px; color:var(--accent);">Completed: 0 | Remaining: 0</div>
+        <button class="btn" id="mainWithdrawBtn">Withdraw Balance</button>
       </div>
 
       <div class="card">
-        <h3>Tasks</h3>
-        <div id="tasksList">Loading tasks from Supabase...</div>
+        <h3>Available Tasks</h3>
+        <div id="tasksList">Loading tasks...</div>
       </div>
 
       <div class="card">
@@ -84,27 +78,30 @@
     <!-- WITHDRAW VIEW -->
     <div id="withdraw-view" class="view" style="display:none">
       <div class="card">
-        <h2>Withdraw</h2>
-        <div class="small-muted">Your Balance</div>
-        <div id="withdrawBalanceDisplay" style="font-size:22px;font-weight:700;margin:8px 0">0 Coins</div>
+        <h2>Withdraw Coins</h2>
+        <div style="background:rgba(255,255,255,0.03); padding:12px; border-radius:8px; margin-bottom:14px;">
+          <div class="small-muted" id="wdMinCoins">Minimum Withdraw: 0 Coins</div>
+          <div class="small-muted" id="wdCondition">Condition: Requires 0 Referrals (Current: 0)</div>
+        </div>
 
         <label for="paymentMethod">Payment Method</label>
         <select id="paymentMethod"><option value="">Select Method</option></select>
 
-        <label for="paymentAddress">Account Number</label>
-        <input type="text" id="paymentAddress" placeholder="e.g., 01XXXXXXXXX" />
+        <label for="paymentAddress" style="margin-top:10px;">Account Number</label>
+        <input type="text" id="paymentAddress" placeholder="01XXXXXXXXX" />
 
-        <div style="height:10px"></div>
-        <label for="withdrawAmount">Coin Amount</label>
-        <input type="number" id="withdrawAmount" placeholder="Enter coin amount" />
-        <div id="coinToMoneyRate" class="small-muted" style="margin-top: 6px; font-weight: 500; color: var(--success);">You will receive: 0.00 BDT</div>
+        <div style="margin-top:10px; display:flex; justify-content:between; align-items:center;">
+          <label for="withdrawAmount" style="margin:0;">Coin Amount</label>
+          <button class="max-btn" id="maxWithdrawBtn">MAX</button>
+        </div>
+        <input type="number" id="withdrawAmount" placeholder="Enter coins" style="margin-top:6px;" />
+        <div id="coinToMoneyRate" class="small-muted" style="margin-top:6px; color:var(--success);">You will receive: 0.00 BDT</div>
 
-        <div style="height:10px"></div>
-        <button class="btn" id="finalWithdrawBtn">Withdraw</button>
+        <button class="btn" id="finalWithdrawBtn" style="margin-top:14px;">Submit Withdrawal</button>
       </div>
 
       <div class="card">
-        <h3>Your Withdraw History</h3>
+        <h3>Withdraw History</h3>
         <div id="userWithdrawHistoryList" class="small-muted">No history found.</div>
       </div>
     </div>
@@ -112,134 +109,93 @@
     <!-- REFERRAL VIEW -->
     <div id="referral-view" class="view" style="display:none">
       <div class="card">
-        <h2>Advanced Referral System</h2>
+        <h2>Referral Center</h2>
         <div class="grid">
-          <div>
-            <div class="small-muted">Total Referrals</div>
-            <div id="referralCountDisplay" style="font-weight:700;font-size:20px">0</div>
-          </div>
-          <div>
-            <div class="small-muted">Referral Earnings</div>
-            <div id="referralBonusDisplay" style="font-weight:700;font-size:20px">0 Coins</div>
-          </div>
+          <div><div class="small-muted">Total Referrals</div><div id="referralCountDisplay" style="font-weight:700;font-size:20px">0</div></div>
+          <div><div class="small-muted">Earnings</div><div id="referralBonusDisplay" style="font-weight:700;font-size:20px">0 Coins</div></div>
         </div>
-
         <div style="margin-top:12px; display:flex; gap:8px;">
           <button id="copyRefIdBtn" class="btn small" style="flex:1">📋 Copy ID</button>
           <button id="copyReferralBtn" class="btn small" style="flex:1">🔗 Copy Link</button>
         </div>
-        <div id="referralLinkText" style="display:none;">loading...</div>
-
-        <!-- Manual Referral Input -->
-        <div style="margin-top:18px; border-top:1px dashed var(--border); padding-top:14px;">
-          <label for="manualRefInput">Enter Friend's Referral ID</label>
-          <div style="display:flex; gap:8px;">
-            <input type="number" id="manualRefInput" placeholder="Enter ID here..." />
-            <button id="claimManualRefBtn" class="btn small" style="background:var(--success);">Claim</button>
-          </div>
-        </div>
+        <div id="referralLinkText" style="display:none;"></div>
       </div>
     </div>
 
-
-
-
-
-
-
-
-        <!-- LEADERBOARD VIEW -->
+    <!-- LEADERBOARD VIEW -->
     <div id="leaderboard-view" class="view" style="display:none">
       <div class="card">
-        <h2>Top Earners</h2>
-        <div id="topEarnersList" style="margin-top:8px"></div>
+        <h2>Top 10 Earners</h2>
+        <div id="topEarnersList"></div>
       </div>
     </div>
 
-    <!-- ADMIN VIEW WITH FULL BACKEND SECTIONS -->
+
+
+        <!-- ADMIN VIEW -->
     <div id="admin-view" class="view" style="display:none">
-      <div class="card admin-section">
+      <div class="card">
         <h2>Admin Panel</h2>
-        <p class="small-muted">Secure Server-side Admin Control Panel (Supabase Sync).</p>
+        <label>Referrer Reward (Coins)</label><input id="setRefBonus" type="number">
+        <label>Referred User Reward (Coins)</label><input id="setRefeBonus" type="number">
+        <label>Minimum Withdraw (Coins)</label><input id="setMinWithdraw" type="number">
+        <label>Withdrawal Condition (Min Referrals)</label><input id="setMinWithdrawRefs" type="number">
+        <label>Coin to BDT Rate</label><input id="setCoinBdtRate" type="number" step="0.0001">
+        <button class="btn" id="saveSettingsBtn" style="margin-top:10px;">Save System Config</button>
       </div>
 
-      <div class="card admin-section" id="settingsCard">
-        <h3>Settings</h3>
-        <label>Referral Reward (coins)</label><input id="setRefBonus" type="number">
-        <label>Minimum Withdraw (coins)</label><input id="setMinWithdraw" type="number">
-        <label>Coin per Task</label><input id="setCoinsPerAd" type="number">
-        <label>Daily Task Limit</label><input id="setDailyLimit" type="number">
-        <label>Coin to BDT Rate (e.g., 0.01 = 100 Coins = 1 Tk)</label>
-        <input id="setCoinBdtRate" type="number" step="0.0001">
-        <div style="height:8px"></div>
-        <button class="btn" id="saveSettingsBtn">Save Settings</button>
+      <div class="card">
+        <h3>Channel Settings</h3>
+        <label>Telegram Channel Username (@name)</label><input id="newChannelName" placeholder="@mychannel">
+        <button class="btn small" id="addChannelBtn" style="margin-top:6px;">Set Channel</button>
+        <div id="adminChannelDisp" class="small-muted" style="margin-top:8px;"></div>
       </div>
 
-      <div class="card admin-section">
-        <h3>Channel Requirements</h3>
-        <label>Add Channel Username (@name)</label><input id="newChannelName" placeholder="@channelname">
-        <div style="height:8px"></div>
-        <button class="btn" id="addChannelBtn">Add Channel</button>
-        <div style="height:8px"></div>
-        <ul id="channelList" class="small-muted"></ul>
-        <div style="height:8px"></div>
-        <button class="btn" id="toggleChannelReqBtn">Toggle Requirement</button>
-      </div>
-
-      <div class="card admin-section">
-        <h3>Pending Withdraw Requests</h3>
-        <div id="withdrawalRequestsList">Loading pending requests...</div>
-      </div>
-
-      <div class="card admin-section">
-        <h3>Tasks Management</h3>
+      <div class="card">
+        <h3>Tasks Settings & Individual Limits</h3>
         <div id="adminTasksList"></div>
-        <div style="margin-top:10px">
-          <label>Task Title</label><input id="newTaskTitle" placeholder="Watch Video Ad" />
-          <label>Coins</label><input id="newTaskCoins" type="number" placeholder="10" />
-          <label>Type</label>
-          <select id="newTaskType">
-            <option value="rewarded">Direct Link Ad</option>
-            <option value="interstitial">Script Code Ad</option>
-          </select>
-          <label>Ad Network URL or SDK Script</label>
-          <textarea id="newTaskSdk" placeholder="Paste link or script here"></textarea>
-          <div style="height:8px"></div>
-          <button class="btn" id="addTaskBtn">Add Task</button>
+        <div style="margin-top:12px; border-top:1px dashed var(--border); padding-top:10px;">
+          <label>Task Title</label><input id="newTaskTitle" />
+          <label>Reward Coins</label><input id="newTaskCoins" type="number" />
+          <label>Individual Daily Limit</label><input id="newTaskLimit" type="number" value="10" />
+          <label>Ad Stream / Script Code / Link</label><textarea id="newTaskSdk"></textarea>
+          <button class="btn" id="addTaskBtn" style="margin-top:8px;">Create Task</button>
         </div>
       </div>
 
-      <div class="card admin-section">
-        <h3>Payment Methods</h3>
-        <div id="paymentMethodsList"></div>
-        <div style="height:8px"></div>
-        <label>Add Payment Method</label><input id="newPaymentMethod" placeholder="e.g., Bkash" />
-        <div style="height:8px"></div>
-        <button class="btn" id="addPaymentMethodBtn">Add</button>
+      <div class="card">
+        <h3>Pending Withdrawals</h3>
+        <div id="withdrawalRequestsList"></div>
       </div>
     </div>
-    
-    <!-- MODALS & AD LAYOUTS -->
-    <div id="adContainer" style="position:fixed;inset:0;background:rgba(2,6,23,0.95);z-index:1200;display:none;align-items:center;justify-content:center;flex-direction:column;overflow:auto;padding:18px">
-      <button id="adCloseBtn" style="position:absolute;right:18px;top:18px;background:var(--danger);color:#fff;border:none;padding:8px 10px;border-radius:8px">Close</button>
-      <div class="card" style="max-width:520px;text-align:center;width:100%">
-        <div id="adSpinner" class="loading-spinner"></div>
-        <div id="timerText">Waiting for ad...</div>
-        <div style="height:8px"></div>
-        <div id="adInfo" class="small-muted">Connecting...</div>
-        <div id="adSdkWrapper" style="margin-top:12px;text-align:left;min-height:150px;width:100%;"></div>
-      </div>
-    </div>
+  </div>
 
-    <div id="channelJoinModal" style="position:fixed;inset:0;background:rgba(2,6,23,0.9);z-index:1300;display:none;align-items:center;justify-content:center">
-      <div class="card" style="max-width:420px;text-align:center">
-        <h3>Join Channel</h3>
-        <p class="small-muted" id="channelJoinText">Please join our channel to use the app.</p>
-        <div style="height:8px"></div>
-        <button class="btn" id="joinChannelBtn">Open Channel</button>
-        <div style="height:8px"></div>
-        <button class="btn" id="verifyJoinBtn" style="background:var(--success)">I've Joined</button>
-      </div>
+  <!-- POPUPS / GATES -->
+  <div id="channelJoinModal">
+    <div class="card" style="max-width:400px;text-align:center;width:100%;">
+      <h3>📢 Join Our Channel</h3>
+      <p class="small-muted">You must be a subscriber of our channel to use this app. Leaving the channel will lock your account instantly.</p>
+      <button class="btn" id="joinChannelBtn">Join Channel</button>
+      <button class="btn" id="verifyJoinBtn" style="background:var(--success);margin-top:8px;">Check Membership</button>
+    </div>
+  </div>
+
+  <div id="referralInputModal">
+    <div class="card" style="max-width:400px;text-align:center;width:100%;">
+      <h3>🎁 Welcome Bonus</h3>
+      <p class="small-muted">Enter a friends referral ID to get instant welcome coins! Press skip if you don't have one.</p>
+      <input type="number" id="modalRefInput" placeholder="Friend's Telegram ID" />
+      <button class="btn" id="submitModalRefBtn" style="background:var(--success);margin-top:10px;">Claim Bonus</button>
+      <button class="btn" id="skipModalRefBtn" style="background:transparent;color:var(--muted);margin-top:6px;">Skip</button>
+    </div>
+  </div>
+
+  <div id="adContainer">
+    <button id="adCloseBtn" style="position:absolute;right:18px;top:18px;background:var(--danger);color:#fff;border:none;padding:8px 10px;border-radius:8px">Close</button>
+    <div class="card" style="max-width:520px;text-align:center;width:100%">
+      <div id="adSpinner" class="loading-spinner"></div>
+      <div id="timerText">Processing...</div>
+      <div id="adSdkWrapper" style="margin-top:12px;"></div>
     </div>
   </div>
 
@@ -255,7 +211,13 @@
 
 
 
-  const BOT_USERNAME = "earnusdt341_bot"; 
+
+
+
+
+
+
+  const BOT_API = "8224498035:AAHg5AQMArVcbiXkPTrea29G6CeK7icUmrU"; 
 const ADMIN_IDS = [5371043649, "5371043649"]; 
 const SUPABASE_URL = "https://wciwhymmszkcbkwmdzda.supabase.co"; 
 const SUPABASE_ANON_KEY = "sb_publishable_Y635xJpnPtRGvyO28AQzWg_cA0w8YE3"; 
@@ -263,397 +225,297 @@ const SUPABASE_ANON_KEY = "sb_publishable_Y635xJpnPtRGvyO28AQzWg_cA0w8YE3";
 let supabaseClient = null;
 const tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
 
-let appConfig = { coinsPerAd: 10, minWithdraw: 10000, refBonus: 500, dailyAdLimit: 10, coinToBdtRate: 0.01, channels: [], channelReqEnabled: true, paymentMethods: ['Bkash', 'Nagad', 'Rocket'] };
-let currentUser = { id: null, first_name: 'Guest', username: 'unknown', balance: 0, daily_ad_count: 0, referral_count: 0, channel_verified: false, ref_code_used: false };
+let appConfig = { refBonus: 500, refeeBonus: 200, minWithdraw: 10000, minReferralsToWithdraw: 5, coinToBdtRate: 0.01, channels: [], paymentMethods: ['Bkash', 'Nagad', 'Rocket'] };
+let currentUser = { id: null, first_name: 'Guest', username: 'unknown', balance: 0, referral_count: 0, ref_code_used: false, task_limits: {}, is_channel_member: false };
 let currentTaskId = null;
 let adTimer = null;
 let timerSeconds = 15;
 
-// Elements DOM Selectors
+// DOM Cache
 const balanceDisplay = document.getElementById('balanceDisplay');
-const mainWithdrawBtn = document.getElementById('mainWithdrawBtn');
-const withdrawBalanceDisplay = document.getElementById('withdrawBalanceDisplay');
-const paymentMethodSelect = document.getElementById('paymentMethod');
-const paymentAddressInput = document.getElementById('paymentAddress');
-const finalWithdrawBtn = document.getElementById('finalWithdrawBtn');
-const referralCountDisplay = document.getElementById('referralCountDisplay');
-const referralBonusDisplay = document.getElementById('referralBonusDisplay');
-const referralLinkText = document.getElementById('referralLinkText');
-const topEarnersList = document.getElementById('topEarnersList');
 const tasksList = document.getElementById('tasksList');
 const adminTasksList = document.getElementById('adminTasksList');
 const withdrawalRequestsList = document.getElementById('withdrawalRequestsList');
-const paymentMethodsList = document.getElementById('paymentMethodsList');
-const userNameEl = document.getElementById('userName');
-const userIdEl = document.getElementById('userId');
-const adContainer = document.getElementById('adContainer');
-const adSdkWrapper = document.getElementById('adSdkWrapper');
-const timerText = document.getElementById('timerText');
-const adSpinner = document.getElementById('adSpinner');
-const adInfo = document.getElementById('adInfo');
-const channelJoinModal = document.getElementById('channelJoinModal');
 const userWithdrawHistoryList = document.getElementById('userWithdrawHistoryList');
 
 async function init() {
-  try { supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); } catch (err) { alert("Supabase Error: " + err.message); return; }
+  try { supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY); } catch (e) { alert("Supabase Initialization Error: " + e.message); return; }
+  
   if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
     const u = tg.initDataUnsafe.user;
     currentUser.id = u.id; currentUser.first_name = u.first_name || 'User'; currentUser.username = u.username || 'unknown';
   } else {
-    currentUser.id = 5371043649; currentUser.first_name = "Test Admin"; currentUser.username = "admin_test";
+    currentUser.id = 5371043649; currentUser.first_name = "Test Admin";
   }
-  userNameEl.textContent = currentUser.first_name;
-  userIdEl.textContent = `ID: ${currentUser.id}`;
+  document.getElementById('userName').textContent = currentUser.first_name;
+  document.getElementById('userId').textContent = `ID: ${currentUser.id}`;
 
   if(ADMIN_IDS.includes(currentUser.id) || ADMIN_IDS.includes(String(currentUser.id))) {
     document.getElementById('navAdmin').style.display = 'block';
-    setupAdminRealtimeNotifications(); 
   }
-  try { await loadConfig(); } catch(e) { console.error(e); }
-  try { await syncUserWithDatabase(); } catch(e) { console.error(e); }
-  generateReferralLink();
-  try { await loadTasks(); } catch(e) { console.error(e); }
-  setupLiveConversion();
-  setupAdvancedReferralControls();
-  updateUI();
-  checkChannelJoin();
+
+  await loadConfig();
+  await enforcementBotVerification(); 
 }
 
-function setupAdminRealtimeNotifications() {
+// বাধ্যতামূলক চ্যানেল মেম্বারশিপ চেক (টেলিগ্রাম এপিআই)
+async function checkTelegramMembership(chatUsername, userId) {
   try {
-    supabaseClient
-      .channel('realtime_withdraws')
-      .on('postgres_changes', { event: 'INSERT', table: 'withdraws' }, payload => {
-         alert(`🔔 New Withdrawal Request Received!\nAmount: ${payload.new.amount} Coins\nMethod: ${payload.new.method}`);
-         if(document.getElementById('admin-view').style.display === 'block') { loadWithdrawalRequests(); }
-      })
-      .subscribe();
-  } catch(e) { console.log(e); }
+    let cleanChat = chatUsername.replace('@', '').trim();
+    let url = `https://api.telegram.org/bot${BOT_API}/getChatMember?chat_id=@${cleanChat}&user_id=${userId}`;
+    let res = await fetch(url);
+    let json = await res.json();
+    if(json.ok && ['member', 'administrator', 'creator'].includes(json.result.status)) {
+      return true;
+    }
+    return false;
+  } catch(e) { return false; }
+}
+
+async function enforcementBotVerification() {
+  if(appConfig.channels && appConfig.channels.length > 0) {
+    let targetChannel = appConfig.channels[0];
+    let isMember = await checkTelegramMembership(targetChannel, currentUser.id);
+    
+    if(!isMember && !ADMIN_IDS.includes(currentUser.id)) {
+      document.getElementById('channelJoinModal').style.display = 'flex';
+      return;
+    }
+  }
+  document.getElementById('channelJoinModal').style.display = 'none';
+  await syncUserWithDatabase();
 }
 
 async function loadConfig() {
-  let { data, error } = await supabaseClient.from('config').select('*').maybeSingle();
-  if (data && !error) { appConfig = data.settings || appConfig; } 
-  else if (!data) { await supabaseClient.from('config').insert([{ id: 1, settings: appConfig }]); }
+  let { data } = await supabaseClient.from('config').select('*').maybeSingle();
+  if (data) appConfig = data.settings;
 }
 
 async function syncUserWithDatabase() {
   let { data: user } = await supabaseClient.from('users').select('*').eq('tg_id', currentUser.id).maybeSingle();
   let todayStr = new Date().toISOString().split('T')[0];
-  
+
   if (!user) {
-    let referrerId = getReferrerFromStartParam();
     let { data: newUser } = await supabaseClient.from('users').insert([{
       tg_id: currentUser.id, first_name: currentUser.first_name, username: currentUser.username,
-      balance: 0, referred_by: referrerId, referral_count: 0, channel_verified: false, ref_code_used: referrerId ? true : false,
-      daily_ad_count: 0, last_ad_date: todayStr
+      balance: 0, referral_count: 0, ref_code_used: false, is_channel_member: true, task_limits: { last_date: todayStr }
     }]).select().single();
     if (newUser) currentUser = { ...currentUser, ...newUser };
-    if (referrerId && referrerId !== currentUser.id) {
-      await supabaseClient.rpc('secure_add_coins', { user_tg_id: referrerId, task_id_param: 0, reward_coins: appConfig.refBonus || 500 });
-      let { data: refUser } = await supabaseClient.from('users').select('referral_count').eq('tg_id', referrerId).maybeSingle();
-      if(refUser) await supabaseClient.from('users').update({ referral_count: (refUser.referral_count || 0) + 1 }).eq('tg_id', referrerId);
-    }
+    
+    document.getElementById('referralInputModal').style.display = 'flex';
   } else {
     currentUser = { ...currentUser, ...user };
-    let dbDateStr = new Date(user.last_ad_date).toISOString().split('T')[0];
-    if(dbDateStr !== todayStr) {
-      await supabaseClient.from('users').update({ daily_ad_count: 0, last_ad_date: todayStr }).eq('tg_id', currentUser.id);
-      currentUser.daily_ad_count = 0;
+    // ডেট চেঞ্জ হলে ইন্ডিভিজুয়াল টাস্ক লিমিট রিসেট সেফ লজিক
+    if(!currentUser.task_limits || currentUser.task_limits.last_date !== todayStr) {
+      currentUser.task_limits = { last_date: todayStr }; 
+      await supabaseClient.from('users').update({ task_limits: currentUser.task_limits }).eq('tg_id', currentUser.id);
     }
+    updateUI();
+    loadTasks();
   }
 }
 
 async function loadTasks() {
   let { data: tasksData } = await supabaseClient.from('tasks').select('*').eq('enabled', true);
   tasksList.innerHTML = '';
-  if(tasksData && tasksData.length > 0) {
+  if(tasksData) {
     tasksData.forEach(t => {
-      const div = document.createElement('div'); div.className='card'; div.style.display='flex'; div.style.justifyContent='space-between'; div.style.alignItems='center';
-      div.innerHTML = `<div><strong>${t.title}</strong><div class="small-muted">${t.coins} Coins</div></div>
-                       <button class="btn small task-action-btn" onclick="startTask(${t.id})">Play</button>`;
+      let completed = currentUser.task_limits[t.id] || 0;
+      let remaining = Math.max(0, t.daily_limit - completed);
+      
+      const div = document.createElement('div'); div.className='card';
+      div.style.display='flex'; div.style.justifyContent='space-between'; div.style.alignItems='center';
+      div.innerHTML = `<div>
+                        <strong>${t.title}</strong>
+                        <div class="small-muted">${t.coins} Coins | Limit: ${completed}/${t.daily_limit}</div>
+                       </div>
+                       <button class="btn small" ${remaining <= 0 ? 'disabled' : ''} onclick="startTask(${t.id})">
+                        ${remaining <= 0 ? 'Limit Over' : 'Play'}
+                       </button>`;
       tasksList.appendChild(div);
     });
-  } else { tasksList.innerHTML = '<div class="small-muted">No active tasks found.</div>'; }
+  }
 }
 
 async function startTask(taskId) {
-  if (appConfig.channelReqEnabled && !currentUser.channel_verified && !ADMIN_IDS.includes(currentUser.id) && !ADMIN_IDS.includes(String(currentUser.id))) {
-    return checkChannelJoin();
+  if(appConfig.channels && appConfig.channels.length > 0 && !ADMIN_IDS.includes(currentUser.id)) {
+    let check = await checkTelegramMembership(appConfig.channels[0], currentUser.id);
+    if(!check) return enforcementBotVerification();
   }
-  if(currentUser.daily_ad_count >= (appConfig.dailyAdLimit || 10)) return alert('Daily limit reached!');
-  
-  let { data: task } = await supabaseClient.from('tasks').select('*').eq('id', taskId).single();
-  if(!task) return alert('Task not found');
   
   currentTaskId = taskId;
-  adContainer.style.display = 'flex'; adSpinner.style.display = 'block';
-  adInfo.textContent = "Initializing secure ad stream..."; timerText.textContent = "Loading Ad Content..."; adSdkWrapper.innerHTML = '';
+  document.getElementById('adContainer').style.display = 'flex';
+  document.getElementById('adSpinner').style.display = 'block';
+  document.getElementById('adSdkWrapper').innerHTML = '';
   
+  let { data: task } = await supabaseClient.from('tasks').select('*').eq('id', taskId).single();
   const rawCode = task.sdk_code.trim();
+  
   if (rawCode.startsWith('http://') || rawCode.startsWith('https://')) {
-    adSpinner.style.display = 'none'; adInfo.textContent = "Ad opened in background. Keep page active!";
+    document.getElementById('adSpinner').style.display = 'none';
     if (tg) { tg.openLink(rawCode); } else { window.open(rawCode, '_blank'); }
     runAdCountdown();
   } else {
-    try {
-      const wrapperDiv = document.createElement('div'); wrapperDiv.innerHTML = rawCode; adSdkWrapper.appendChild(wrapperDiv);
-      wrapperDiv.querySelectorAll('script').forEach(oldScript => {
-        const newScript = document.createElement('script');
-        Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
-        newScript.appendChild(document.createTextNode(oldScript.innerHTML));
-        oldScript.parentNode.replaceChild(newScript, oldScript);
-      });
-      setTimeout(() => { adSpinner.style.display = 'none'; adInfo.textContent = "Ad playing natively."; runAdCountdown(); }, 1500);
-    } catch (e) { adSpinner.style.display = 'none'; runAdCountdown(); }
+    const wrapper = document.createElement('div'); wrapper.innerHTML = rawCode;
+    document.getElementById('adSdkWrapper').appendChild(wrapper);
+    wrapper.querySelectorAll('script').forEach(oldScript => {
+      const newScript = document.createElement('script');
+      Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+      newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+      oldScript.parentNode.replaceChild(newScript, oldScript);
+    });
+    setTimeout(() => { document.getElementById('adSpinner').style.display = 'none'; runAdCountdown(); }, 1200);
   }
 }
 
 function runAdCountdown() {
-  timerSeconds = 15; timerText.textContent = `Time remaining: ${timerSeconds} seconds`;
+  timerSeconds = 15; document.getElementById('timerText').textContent = `Watch ad for ${timerSeconds}s`;
   clearInterval(adTimer);
   adTimer = setInterval(async () => {
-    timerSeconds--; timerText.textContent = `Time remaining: ${Math.max(0, timerSeconds)} seconds`;
+    timerSeconds--; document.getElementById('timerText').textContent = `Watch ad for ${Math.max(0, timerSeconds)}s`;
     if(timerSeconds <= 0) { clearInterval(adTimer); await triggerRewardOnServer(); }
   }, 1000);
 }
 
 async function triggerRewardOnServer() {
-  adContainer.style.display = 'none';
-  let { data: currentTask } = await supabaseClient.from('tasks').select('coins').eq('id', currentTaskId).single();
-  let rewardCoins = currentTask ? currentTask.coins : 10;
+  document.getElementById('adContainer').style.display = 'none';
+  let { data: task } = await supabaseClient.from('tasks').select('*').eq('id', currentTaskId).single();
   
-  const { error } = await supabaseClient.rpc('secure_add_coins', { user_tg_id: currentUser.id, task_id_param: currentTaskId, reward_coins: rewardCoins });
-  if (!error) {
-    currentUser.daily_ad_count += 1;
-    await supabaseClient.from('users').update({ daily_ad_count: currentUser.daily_ad_count }).eq('tg_id', currentUser.id);
-    let { data: updatedUser } = await supabaseClient.from('users').select('balance').eq('tg_id', currentUser.id).single();
-    if (updatedUser) { currentUser.balance = updatedUser.balance; updateUI(); alert(`+${rewardCoins} Coins credited safely!`); }
-  } else { alert(error.message); }
-  currentTaskId = null; loadTasks();
-  }
-
-
-
-
-
-
-
-
-
-
-function generateReferralLink(){
-  const link = `https://t.me/${BOT_USERNAME}?start=ref_${currentUser.id}`;
-  referralLinkText.textContent = link;
-}
-
-function setupAdvancedReferralControls() {
-  document.getElementById('copyRefIdBtn').onclick = () => { navigator.clipboard.writeText(currentUser.id); alert('Your Referral ID copied!'); };
-  document.getElementById('copyReferralBtn').onclick = () => { navigator.clipboard.writeText(referralLinkText.textContent); alert('Referral link copied!'); };
+  currentUser.task_limits[currentTaskId] = (currentUser.task_limits[currentTaskId] || 0) + 1;
+  await supabaseClient.rpc('secure_add_coins', { user_tg_id: currentUser.id, task_id_param: currentTaskId, reward_coins: task.coins });
+  await supabaseClient.from('users').update({ task_limits: currentUser.task_limits }).eq('tg_id', currentUser.id);
   
-  document.getElementById('claimManualRefBtn').onclick = async () => {
-    const inputField = document.getElementById('manualRefInput'); const inputId = parseInt(inputField.value.trim());
-    if(!inputId || isNaN(inputId)) return alert('Please enter a valid Referral ID');
-    if(currentUser.ref_code_used) return alert('You have already claimed a referral bonus!');
-    if(inputId === currentUser.id) return alert('You cannot refer yourself!');
-    
-    let { data: refUser } = await supabaseClient.from('users').select('referral_count').eq('tg_id', inputId).maybeSingle();
-    if(!refUser) return alert('Referral ID not found!');
-    
-    await supabaseClient.from('users').update({ ref_code_used: true }).eq('tg_id', currentUser.id);
-    await supabaseClient.rpc('secure_add_coins', { user_tg_id: inputId, task_id_param: 0, reward_coins: appConfig.refBonus });
-    await supabaseClient.from('users').update({ referral_count: (refUser.referral_count || 0) + 1 }).eq('tg_id', inputId);
-    
-    currentUser.ref_code_used = true; alert('Referral claimed successfully!'); inputField.value = ''; updateUI();
-  };
-}
-
-function getReferrerFromStartParam() {
-  if (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) {
-    const param = tg.initDataUnsafe.start_param; if (param.startsWith('ref_')) return parseInt(param.replace('ref_', ''));
-  }
-  return null;
+  alert(`Task complete! You earned +${task.coins} Coins.`);
+  let { data: updatedUser } = await supabaseClient.from('users').select('balance').eq('tg_id', currentUser.id).single();
+  if(updatedUser) currentUser.balance = updatedUser.balance;
+  
+  updateUI(); loadTasks();
 }
 
 function updateUI() {
   balanceDisplay.textContent = `${currentUser.balance} Coins`;
-  withdrawBalanceDisplay.textContent = `${currentUser.balance} Coins`;
-  referralCountDisplay.textContent = currentUser.referral_count || 0;
-  referralBonusDisplay.textContent = `${(currentUser.referral_count || 0) * (appConfig.refBonus || 500)} Coins`;
+  document.getElementById('referralCountDisplay').textContent = currentUser.referral_count || 0;
+  document.getElementById('referralBonusDisplay').textContent = `${(currentUser.referral_count || 0) * appConfig.refBonus} Coins`;
   
-  // Dynamic Live Ads Counter Tracker & Button Lock
-  const completed = currentUser.daily_ad_count || 0;
-  const remaining = Math.max(0, (appConfig.dailyAdLimit || 10) - completed);
-  document.getElementById('liveAdTracker').innerHTML = `Completed: <strong>${completed}</strong> | Remaining: <strong>${remaining}</strong>`;
+  document.getElementById('wdMinCoins').textContent = `Minimum Withdraw: ${appConfig.minWithdraw} Coins`;
+  document.getElementById('wdCondition').innerHTML = `Condition: Requires <strong>${appConfig.minReferralsToWithdraw}</strong> Referrals (Current: <strong>${currentUser.referral_count || 0}</strong>)`;
   
-  document.querySelectorAll('.task-action-btn').forEach(btn => {
-    if(remaining <= 0) { btn.disabled = true; btn.textContent = "Limit Over"; } 
-    else { btn.disabled = false; btn.textContent = "Play"; }
+  const methodSelect = document.getElementById('paymentMethod');
+  methodSelect.innerHTML = '<option value="">Select Method</option>';
+  appConfig.paymentMethods.forEach(m => {
+    const opt = document.createElement('option'); opt.value = m; opt.textContent = m; methodSelect.appendChild(opt);
   });
-
-  const canWithdraw = currentUser.balance >= (appConfig.minWithdraw || 10000);
-  mainWithdrawBtn.disabled = !canWithdraw;
-  mainWithdrawBtn.textContent = canWithdraw ? `Withdraw Balance` : `Reach ${appConfig.minWithdraw || 10000} Coins to Withdraw`;
-  finalWithdrawBtn.disabled = !canWithdraw;
   
-  paymentMethodSelect.innerHTML = '<option value="">Select Method</option>';
-  if(appConfig.paymentMethods) {
-    appConfig.paymentMethods.forEach(m => {
-      const opt = document.createElement('option'); opt.value = m; opt.textContent = m; paymentMethodSelect.appendChild(opt);
-    });
-  }
+  const link = `https://t.me/earnusdt341_bot?start=ref_${currentUser.id}`;
+  document.getElementById('referralLinkText').textContent = link;
 }
 
-function setupLiveConversion() {
-  document.getElementById('withdrawAmount').addEventListener('input', (e) => {
-    const coins = parseInt(e.target.value) || 0;
-    document.getElementById('coinToMoneyRate').innerHTML = `You will receive: <strong>${(coins * (appConfig.coinToBdtRate || 0.01)).toFixed(2)} BDT</strong>`;
-  });
+// MAX উইথড্র বাটন অ্যাকশন
+document.getElementById('maxWithdrawBtn').onclick = (e) => {
+  e.preventDefault();
+  document.getElementById('withdrawAmount').value = currentUser.balance;
+  triggerLiveConversion(currentUser.balance);
+};
+
+document.getElementById('withdrawAmount').oninput = (e) => {
+  triggerLiveConversion(parseInt(e.target.value) || 0);
+};
+
+function triggerLiveConversion(coins) {
+  document.getElementById('coinToMoneyRate').innerHTML = `You will receive: <strong>${(coins * appConfig.coinToBdtRate).toFixed(2)} BDT</strong>`;
 }
 
 async function handleWithdrawal() {
-  const method = paymentMethodSelect.value; const address = paymentAddressInput.value.trim();
-  const withdrawAmount = parseInt(document.getElementById('withdrawAmount').value);
+  const method = document.getElementById('paymentMethod').value;
+  const address = document.getElementById('paymentAddress').value.trim();
+  const amount = parseInt(document.getElementById('withdrawAmount').value);
   
-  if(!method || !address || isNaN(withdrawAmount)) return alert('Please fill up details');
-  if(withdrawAmount < appConfig.minWithdraw) return alert(`Minimum withdraw is ${appConfig.minWithdraw} Coins`);
-  if(currentUser.balance < withdrawAmount) return alert('Insufficient Balance');
+  if(!method || !address || isNaN(amount) || amount <= 0) return alert('Fill up all transaction details correctly!');
+  if(amount < appConfig.minWithdraw) return alert(`Minimum limit is ${appConfig.minWithdraw} coins.`);
+  if(currentUser.balance < amount) return alert('Insufficient Balance!');
   
-  const { error: balError } = await supabaseClient.from('users').update({ balance: currentUser.balance - withdrawAmount }).eq('tg_id', currentUser.id);
-  if(!balError) {
-    await supabaseClient.from('withdraws').insert([{ tg_id: currentUser.id, username: currentUser.username || 'N/A', amount: withdrawAmount, method: method, address: address, status: 'pending' }]);
-    alert('Withdrawal request placed successfully!');
-    currentUser.balance -= withdrawAmount; document.getElementById('withdrawAmount').value = ''; paymentAddressInput.value = '';
-    document.getElementById('coinToMoneyRate').innerHTML = 'You will receive: 0.00 BDT'; updateUI(); showView('home-view');
-  } else { alert('Error submitting request.'); }
-}
-
-async function loadUserWithdrawHistory() {
-  if (!currentUser.id) return;
-  let { data: history } = await supabaseClient.from('withdraws').select('*').eq('tg_id', currentUser.id).order('created_at', {ascending: false});
-  userWithdrawHistoryList.innerHTML = '';
-  if (history && history.length > 0) {
-    history.forEach(h => {
-      const item = document.createElement('div'); item.className = 'leaderboard-item';
-      let statusColor = 'var(--muted)';
-      if(h.status === 'approved') statusColor = 'var(--success)';
-      if(h.status === 'rejected') statusColor = 'var(--danger)';
-      if(h.status === 'pending') statusColor = 'var(--accent)';
-      item.innerHTML = `<div>⚙️ ${h.amount} Coins (${h.method})</div><div style="color:${statusColor}; font-weight:bold; font-size:13px;">${h.status.toUpperCase()}</div>`;
-      userWithdrawHistoryList.appendChild(item);
-    });
-  } else { userWithdrawHistoryList.innerHTML = '<div class="small-muted">No withdraw requests submitted yet.</div>'; }
-}
-
-function checkChannelJoin() {
-  if (appConfig.channelReqEnabled && !ADMIN_IDS.includes(currentUser.id) && !ADMIN_IDS.includes(String(currentUser.id)) && !currentUser.channel_verified) {
-    document.getElementById('channelJoinText').textContent = appConfig.channels && appConfig.channels.length > 0 ? `Please join: ${appConfig.channels.join(', ')}` : 'Join our channel to access app.';
-    channelJoinModal.style.display = 'flex';
+  if((currentUser.referral_count || 0) < appConfig.minReferralsToWithdraw) {
+    return alert(`Withdrawal Locked! You need at least ${appConfig.minReferralsToWithdraw} referrals. You have ${currentUser.referral_count}.`);
   }
-}
-
-// ADMIN INTERACTION MECHANICS
-document.getElementById('addTaskBtn').addEventListener('click', async () => {
-  const title = document.getElementById('newTaskTitle').value.trim(); const coins = parseInt(document.getElementById('newTaskCoins').value);
-  const type = document.getElementById('newTaskType').value; const sdk_code = document.getElementById('newTaskSdk').value.trim();
-  if(!title || !coins || !sdk_code) return alert('Please fill up all details!');
-  const { error } = await supabaseClient.from('tasks').insert([{ title, coins, type, sdk_code, enabled: true }]);
-  if(!error) { alert('Task synchronized safely!'); document.getElementById('newTaskTitle').value = ''; document.getElementById('newTaskCoins').value = ''; document.getElementById('newTaskSdk').value = ''; await loadTasks(); await loadAdminTasks(); }
-});
-
-async function loadAdminTasks() {
-  let { data: tasksData } = await supabaseClient.from('tasks').select('*'); adminTasksList.innerHTML = '';
-  if(tasksData) {
-    tasksData.forEach(t => {
-      const div = document.createElement('div'); div.className = 'leaderboard-item';
-      div.innerHTML = `<div><strong>${t.title}</strong> (${t.coins} coins)</div><button class="btn small" style="background:var(--danger);" onclick="deleteTask(${t.id})">Delete</button>`;
-      adminTasksList.appendChild(div);
-    });
-  }
-}
-window.deleteTask = async function(id) {
-  if(confirm('Are you sure you want to delete this task?')) { const { error } = await supabaseClient.from('tasks').delete().eq('id', id); if(!error) { alert('Task deleted!'); await loadTasks(); await loadAdminTasks(); } }
-};
-
-document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
-  appConfig.refBonus = parseInt(document.getElementById('setRefBonus').value); appConfig.minWithdraw = parseInt(document.getElementById('setMinWithdraw').value);
-  appConfig.coinsPerAd = parseInt(document.getElementById('setCoinsPerAd').value); appConfig.dailyAdLimit = parseInt(document.getElementById('setDailyLimit').value);
-  appConfig.coinToBdtRate = parseFloat(document.getElementById('setCoinBdtRate').value);
-  const { error } = await supabaseClient.from('config').update({ settings: appConfig }).eq('id', 1);
-  if(!error) { alert('Settings saved successfully!'); updateUI(); }
-});
-
-async function loadWithdrawalRequests() {
-  let { data: requests } = await supabaseClient.from('withdraws').select('*').eq('status', 'pending').order('created_at', {ascending: false});
-  withdrawalRequestsList.innerHTML = '';
-  if(requests && requests.length > 0) {
-    requests.forEach(r => {
-      const div = document.createElement('div'); div.className = 'card';
-      div.innerHTML = `<div class="small-muted">User ID: ${r.tg_id} (@${r.username})</div><div style="margin:6px 0;"><strong>${r.amount} Coins</strong> via <span class="badge">${r.method}</span></div>
-        <div class="small-muted" style="display:flex; align-items:center; gap:8px; margin-bottom: 4px;">Account: <strong>${r.address}</strong><button class="btn small" style="padding:2px 6px; font-size:11px; background:#475569;" onclick="copyToClipboard('${r.address}')">Copy</button></div>
-        <div style="margin-top:8px; display:flex; gap:8px;"><button class="btn small" style="background:var(--success);" onclick="updateWithdrawStatus(${r.id}, 'approved')">Approve</button>
-        <button class="btn small" style="background:var(--danger);" onclick="updateWithdrawStatus(${r.id}, 'rejected', ${r.tg_id}, ${r.amount})">Reject</button></div>`;
-      withdrawalRequestsList.appendChild(div);
-    });
-  } else { withdrawalRequestsList.innerHTML = '<div class="small-muted">No pending requests found.</div>'; }
-}
-window.copyToClipboard = function(text) { navigator.clipboard.writeText(text); alert('Copied: ' + text); };
-window.updateWithdrawStatus = async function(id, status, user_tg_id = null, amount = 0) {
-  const { error } = await supabaseClient.from('withdraws').update({ status: status }).eq('id', id);
+  
+  const { error } = await supabaseClient.from('users').update({ balance: currentUser.balance - amount }).eq('tg_id', currentUser.id);
   if(!error) {
-    if(status === 'rejected' && user_tg_id) { await supabaseClient.rpc('secure_add_coins', { user_tg_id: user_tg_id, task_id_param: 0, reward_coins: amount }); }
-    alert(`Request marked as ${status}!`); await loadWithdrawalRequests();
+    await supabaseClient.from('withdraws').insert([{ tg_id: currentUser.id, username: currentUser.username, amount: amount, method: method, address: address, status: 'pending' }]);
+    alert('Withdrawal request submitted!');
+    currentUser.balance -= amount;
+    document.getElementById('withdrawAmount').value = '';
+    triggerLiveConversion(0);
+    updateUI(); showView('home-view');
+  }
+        }
+
+
+  // রেফার বোনাস সাবমিট (উভয় ইউজার রিওয়ার্ড লজিক)
+document.getElementById('submitModalRefBtn').onclick = async () => {
+  const inputId = parseInt(document.getElementById('modalRefInput').value.trim());
+  if(!inputId || isNaN(inputId) || inputId === currentUser.id) return alert('Invalid Referral ID.');
+  
+  let { data: referrer } = await supabaseClient.from('users').select('referral_count').eq('tg_id', inputId).maybeSingle();
+  if(!referrer) return alert('Referrer User not found!');
+  
+  await supabaseClient.rpc('secure_add_coins', { user_tg_id: currentUser.id, task_id_param: 0, reward_coins: appConfig.refeeBonus });
+  await supabaseClient.rpc('secure_add_coins', { user_tg_id: inputId, task_id_param: 0, reward_coins: appConfig.refBonus });
+  await supabaseClient.from('users').update({ referral_count: (referrer.referral_count || 0) + 1 }).eq('tg_id', inputId);
+  await supabaseClient.from('users').update({ ref_code_used: true }).eq('tg_id', currentUser.id);
+  
+  alert(`Welcome Bonus Active! +${appConfig.refeeBonus} Coins added.`);
+  document.getElementById('referralInputModal').style.display = 'none';
+  syncUserWithDatabase();
+};
+
+document.getElementById('skipModalRefBtn').onclick = () => {
+  document.getElementById('referralInputModal').style.display = 'none';
+  loadTasks();
+};
+
+document.getElementById('verifyJoinBtn').onclick = async () => {
+  if(appConfig.channels && appConfig.channels.length > 0) {
+    let check = await checkTelegramMembership(appConfig.channels[0], currentUser.id);
+    if(check) {
+      document.getElementById('channelJoinModal').style.display = 'none';
+      await syncUserWithDatabase();
+    } else { alert('Verification failed. Join first!'); }
   }
 };
 
-document.getElementById('addPaymentMethodBtn').addEventListener('click', async () => {
-  const newMethod = document.getElementById('newPaymentMethod').value.trim(); if(!newMethod) return;
-  appConfig.paymentMethods.push(newMethod);
-  const { error } = await supabaseClient.from('config').update({ settings: appConfig }).eq('id', 1);
-  if(!error) { document.getElementById('newPaymentMethod').value = ''; updateUI(); loadPaymentMethodsAdmin(); }
-});
-function loadPaymentMethodsAdmin() {
-  paymentMethodsList.innerHTML = '';
-  if(appConfig.paymentMethods) {
-    appConfig.paymentMethods.forEach((m, idx) => {
-      const li = document.createElement('div'); li.className = 'leaderboard-item';
-      li.innerHTML = `<span>${m}</span> <button class="btn small" style="background:var(--danger); padding:4px 6px;" onclick="deleteMethod(${idx})">X</button>`;
-      paymentMethodsList.appendChild(li);
-    });
-  }
-}
-window.deleteMethod = async function(idx) { appConfig.paymentMethods.splice(idx, 1); const { error } = await supabaseClient.from('config').update({ settings: appConfig }).eq('id', 1); if(!error) { updateUI(); loadPaymentMethodsAdmin(); } };
+document.getElementById('joinChannelBtn').onclick = () => {
+  if(appConfig.channels.length > 0) window.open(`https://t.me/${appConfig.channels[0].replace('@','')}`, '_blank');
+};
 
-document.getElementById('addChannelBtn').addEventListener('click', async () => {
-  const channel = document.getElementById('newChannelName').value.trim(); if(!channel.startsWith('@')) return alert('Must start with @');
-  if(!appConfig.channels.includes(channel)) { appConfig.channels.push(channel); const { error } = await supabaseClient.from('config').update({ settings: appConfig }).eq('id', 1); if(!error) { document.getElementById('newChannelName').value = ''; loadChannelsAdmin(); } }
-});
-document.getElementById('toggleChannelReqBtn').addEventListener('click', async () => {
-  appConfig.channelReqEnabled = !appConfig.channelReqEnabled; const { error } = await supabaseClient.from('config').update({ settings: appConfig }).eq('id', 1); if(!error) { alert(`Channel requirement turned ${appConfig.channelReqEnabled ? 'ON' : 'OFF'}`); }
-});
-function loadChannelsAdmin() {
-  const channelList = document.getElementById('channelList'); channelList.innerHTML = '';
-  if(appConfig.channels) { appConfig.channels.forEach((c, idx) => { const li = document.createElement('li'); li.style.margin = '4px 0'; li.innerHTML = `${c} <button class="btn small" style="background:var(--danger); padding:2px 4px; font-size:11px;" onclick="deleteChannel(${idx})">Remove</button>`; channelList.appendChild(li); }); }
-}
-window.deleteChannel = async function(idx) { appConfig.channels.splice(idx, 1); const { error } = await supabaseClient.from('config').update({ settings: appConfig }).eq('id', 1); if(!error) { loadChannelsAdmin(); } };
+// ADMIN INTERACTIONS
+document.getElementById('saveSettingsBtn').onclick = async () => {
+  appConfig.refBonus = parseInt(document.getElementById('setRefBonus').value);
+  appConfig.refeeBonus = parseInt(document.getElementById('setRefeBonus').value);
+  appConfig.minWithdraw = parseInt(document.getElementById('setMinWithdraw').value);
+  appConfig.minReferralsToWithdraw = parseInt(document.getElementById('setMinWithdrawRefs').value);
+  appConfig.coinToBdtRate = parseFloat(document.getElementById('setCoinBdtRate').value);
+  
+  await supabaseClient.from('config').update({ settings: appConfig }).eq('id', 1);
+  alert('Configuration successfully synced.'); updateUI();
+};
 
-async function loadLeaderboards() {
-  try {
-    let { data: earners } = await supabaseClient.from('users').select('first_name, username, balance').order('balance', {ascending: false}).limit(10);
-    topEarnersList.innerHTML = '';
-    if(earners) {
-      earners.forEach((u, index) => {
-        const d = document.createElement('div'); d.className='leaderboard-item'; d.style.display = 'flex'; d.style.alignItems = 'center'; d.style.justifyContent = 'space-between';
-        let rankBadge = `#${index + 1}`; if(index === 0) rankBadge = '🥇'; if(index === 1) rankBadge = '🥈'; if(index === 2) rankBadge = '🥉';
-        const firstChar = u.first_name ? u.first_name.charAt(0).toUpperCase() : '?';
-        d.innerHTML = `<div style="display:flex; align-items:center;"><span style="font-weight:bold; margin-right:12px; width:24px; color:var(--muted);">${rankBadge}</span>
-            <div style="width:32px; height:32px; background:var(--accent); border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; color:#fff; margin-right:10px;">${firstChar}</div>
-            <div><strong>${u.first_name}</strong><div class="small-muted">@${u.username || 'unknown'}</div></div></div><div style="font-weight:bold; color:var(--success);">${u.balance} Coins</div>`;
-        topEarnersList.appendChild(d);
-      });
-    }
-  } catch(e) { console.error(e); }
-}
+document.getElementById('addChannelBtn').onclick = async () => {
+  let ch = document.getElementById('newChannelName').value.trim();
+  if(!ch.startsWith('@')) return alert('Must start with @');
+  appConfig.channels = [ch];
+  await supabaseClient.from('config').update({ settings: appConfig }).eq('id', 1);
+  document.getElementById('adminChannelDisp').textContent = `Active Channel: ${ch}`;
+};
+
+document.getElementById('addTaskBtn').onclick = async () => {
+  const title = document.getElementById('newTaskTitle').value;
+  const coins = parseInt(document.getElementById('newTaskCoins').value);
+  const limit = parseInt(document.getElementById('newTaskLimit').value);
+  const sdk = document.getElementById('newTaskSdk').value;
+  
+  await supabaseClient.from('tasks').insert([{ title, coins, daily_limit: limit, sdk_code: sdk, type: 'rewarded', enabled: true }]);
+  alert('Task created!'); loadTasks();
+};
 
 function showView(id){
   document.querySelectorAll('.view').forEach(v=>v.style.display='none');
@@ -661,34 +523,33 @@ function showView(id){
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   
   if (id==='home-view') document.getElementById('navHome').classList.add('active');
-  if (id==='withdraw-view') { document.getElementById('navWithdraw').classList.add('active'); loadUserWithdrawHistory(); }
+  if (id==='withdraw-view') { document.getElementById('navWithdraw').classList.add('active'); updateUI(); }
   if (id==='referral-view') document.getElementById('navRefer').classList.add('active');
-  if (id==='leaderboard-view') { document.getElementById('navLeaderboard').classList.add('active'); loadLeaderboards(); }
   if (id==='admin-view') {
-    document.getElementById('navAdmin').classList.add('active'); loadAdminTasks(); loadWithdrawalRequests(); loadPaymentMethodsAdmin(); loadChannelsAdmin();
-    document.getElementById('setRefBonus').value = appConfig.refBonus; document.getElementById('setMinWithdraw').value = appConfig.minWithdraw;
-    document.getElementById('setCoinsPerAd').value = appConfig.coinsPerAd; document.getElementById('setDailyLimit').value = appConfig.dailyAdLimit;
+    document.getElementById('setRefBonus').value = appConfig.refBonus;
+    document.getElementById('setRefeBonus').value = appConfig.refeeBonus || 200;
+    document.getElementById('setMinWithdraw').value = appConfig.minWithdraw;
+    document.getElementById('setMinWithdrawRefs').value = appConfig.minReferralsToWithdraw || 5;
     document.getElementById('setCoinBdtRate').value = appConfig.coinToBdtRate;
+    document.getElementById('adminChannelDisp').textContent = `Active Channel: ${appConfig.channels[0] || 'None'}`;
   }
 }
 
-document.getElementById('navHome').addEventListener('click', ()=>showView('home-view'));
-document.getElementById('navWithdraw').addEventListener('click', ()=>showView('withdraw-view'));
-document.getElementById('mainWithdrawBtn').addEventListener('click', ()=>showView('withdraw-view')); 
-document.getElementById('navRefer').addEventListener('click', ()=>showView('referral-view'));
-document.getElementById('navLeaderboard').addEventListener('click', ()=>showView('leaderboard-view'));
-document.getElementById('navAdmin').addEventListener('click', ()=>{ if(ADMIN_IDS.includes(currentUser.id) || ADMIN_IDS.includes(String(currentUser.id))) showView('admin-view'); });
-document.getElementById('openReferralBtn').addEventListener('click', ()=>showView('referral-view'));
-document.getElementById('openLeaderboardBtn').addEventListener('click', ()=>showView('leaderboard-view'));
-document.getElementById('finalWithdrawBtn').addEventListener('click', handleWithdrawal);
-document.getElementById('verifyJoinBtn').onclick = async () => { await supabaseClient.from('users').update({ channel_verified: true }).eq('tg_id', currentUser.id); currentUser.channel_verified = true; channelJoinModal.style.display = 'none'; updateUI(); };
-document.getElementById('joinChannelBtn').onclick = () => { if (appConfig.channels && appConfig.channels.length > 0) window.open(`https://t.me/${appConfig.channels[0].replace('@','')}`, '_blank'); };
-document.getElementById('adCloseBtn').addEventListener('click', () => { clearInterval(adTimer); adContainer.style.display='none'; currentTaskId=null; });
+document.getElementById('navHome').onclick = () => showView('home-view');
+document.getElementById('navWithdraw').onclick = () => showView('withdraw-view');
+document.getElementById('mainWithdrawBtn').onclick = () => showView('withdraw-view');
+document.getElementById('navRefer').onclick = () => showView('referral-view');
+document.getElementById('openReferralBtn').onclick = () => showView('referral-view');
+document.getElementById('navLeaderboard').onclick = () => showView('leaderboard-view');
+document.getElementById('openLeaderboardBtn').onclick = () => showView('leaderboard-view');
+document.getElementById('navAdmin').onclick = () => showView('admin-view');
+document.getElementById('finalWithdrawBtn').onclick = handleWithdrawal;
+document.getElementById('adCloseBtn').onclick = () => { clearInterval(adTimer); document.getElementById('adContainer').style.display='none'; };
 
 document.addEventListener('DOMContentLoaded', init);
-</script>
+
+
+  </script>
+    </div> <!-- /container -->
 </body>
 </html>
-
-  
-    
