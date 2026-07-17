@@ -1379,20 +1379,26 @@ function showReferralModal() {
 
 
 
+
+      
+
+
       
     window.updateWithdrawStatus = async function(id, status, userTgId = null, amount = 0) {
+  console.log('Update Withdraw Called:', { id, status, userTgId, amount });
+  
   let rejectReason = '';
   
   // Reject করলে কারণ জানতে চাওয়া হবে
   if (status === 'rejected') {
-    rejectReason = prompt('⚠️ Why are you rejecting this withdrawal? (Write reason in Bangla/English)');
+    rejectReason = prompt('⚠️ Why are you rejecting this withdrawal?');
     if (!rejectReason || rejectReason.trim() === '') {
-      alert('❌ You must provide a reason for rejection!');
+      alert('❌ You must provide a reason!');
       return;
     }
   }
 
-  // Update withdrawal status with reason
+  // Step 1: Update withdrawal status
   const updateData = { status: status };
   if (status === 'rejected') {
     updateData.reject_reason = rejectReason;
@@ -1403,46 +1409,78 @@ function showReferralModal() {
     .update(updateData)
     .eq('id', id);
 
-  if (!error) {
-    // Reject হলে কয়েন ফেরত দিন
-    if (status === 'rejected' && userTgId && amount > 0) {
-      await supabaseClient.rpc('secure_add_coins', {
-        user_tg_id: userTgId,
-        task_id_param: 0,
-        reward_coins: amount
-      });
-      
-      // ইউজারকে Telegram মেসেজ পাঠানোর চেষ্টা করুন
-      try {
-        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: userTgId,
-            text: `❌ *Withdrawal Rejected*\n\n` +
-                  `💰 Amount: ${amount} Coins\n` +
-                  `📝 Reason: ${rejectReason}\n` +
-                  `🔄 Your coins have been refunded to your balance.\n\n` +
-                  `🔍 Please fix the issue and try again.`,
-            parse_mode: 'Markdown'
-          })
-        });
-      } catch (msgErr) {
-        console.log('Could not send Telegram message:', msgErr);
-      }
+  if (error) {
+    alert('❌ Error updating status: ' + error.message);
+    return;
+  }
+
+  // Step 2: Reject হলে কয়েন ফেরত দিন
+  if (status === 'rejected' && userTgId && amount > 0) {
+    console.log('Attempting to refund:', { userTgId, amount });
+    
+    // প্রথমে চেক করুন ইউজার আছে কিনা
+    const { data: userCheck } = await supabaseClient
+      .from('users')
+      .select('tg_id, balance')
+      .eq('tg_id', userTgId)
+      .single();
+    
+    if (!userCheck) {
+      alert('⚠️ User not found in database! Cannot refund coins.');
+      return;
     }
     
-    // Admin-কে কনফার্মেশন দেখান
-    const message = status === 'approved' 
-      ? '✅ Withdrawal Approved! User will receive payment.' 
-      : `❌ Withdrawal Rejected!\n📝 Reason: ${rejectReason}\n🔄 Coins refunded to user.`;
+    console.log('User found:', userCheck);
     
-    alert(message);
-    await loadWithdrawalRequests();
-  } else {
-    alert('❌ Error: ' + error.message);
+    // RPC দিয়ে কয়েন যোগ করুন
+    const { error: rpcError } = await supabaseClient.rpc('secure_add_coins', {
+      user_tg_id: userTgId,
+      task_id_param: 0,
+      reward_coins: amount
+    });
+    
+    if (rpcError) {
+      console.error('RPC Error:', rpcError);
+      
+      // RPC fail করলে সরাসরি UPDATE করে দিন (Backup method)
+      const { error: updateError } = await supabaseClient
+        .from('users')
+        .update({ balance: userCheck.balance + amount })
+        .eq('tg_id', userTgId);
+      
+      if (updateError) {
+        alert('❌ Failed to refund coins! Error: ' + updateError.message);
+      } else {
+        alert('✅ Coins refunded successfully (direct update)');
+      }
+    } else {
+      console.log('RPC success - coins refunded');
+      alert('✅ Coins refunded successfully via RPC');
+    }
+    
+    // Step 3: Telegram মেসেজ পাঠান
+    try {
+      const message = `❌ *Withdrawal Rejected*\n\n💰 Amount: ${amount} Coins\n📝 Reason: ${rejectReason}\n🔄 Coins refunded to balance.`;
+      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: userTgId,
+          text: message,
+          parse_mode: 'Markdown'
+        })
+      });
+    } catch (msgErr) {
+      console.log('Telegram message failed:', msgErr);
+    }
   }
+  
+  await loadWithdrawalRequests();
 };
+
+
+
+      
 
       
 
