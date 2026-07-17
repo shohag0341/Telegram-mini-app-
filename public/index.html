@@ -1374,25 +1374,84 @@ function showReferralModal() {
       alert('Copied: ' + text);
     };
 
+
+
+
+
+
+      
     window.updateWithdrawStatus = async function(id, status, userTgId = null, amount = 0) {
-      const { error } = await supabaseClient
-        .from('withdraws')
-        .update({ status })
-        .eq('id', id);
+  let rejectReason = '';
+  
+  // Reject করলে কারণ জানতে চাওয়া হবে
+  if (status === 'rejected') {
+    rejectReason = prompt('⚠️ Why are you rejecting this withdrawal? (Write reason in Bangla/English)');
+    if (!rejectReason || rejectReason.trim() === '') {
+      alert('❌ You must provide a reason for rejection!');
+      return;
+    }
+  }
 
-      if (!error) {
-        if (status === 'rejected' && userTgId) {
-          await supabaseClient.rpc('secure_add_coins', {
-            user_tg_id: userTgId,
-            task_id_param: 0,
-            reward_coins: amount
-          });
-        }
-        alert(`Request marked as ${status}!`);
-        await loadWithdrawalRequests();
+  // Update withdrawal status with reason
+  const updateData = { status: status };
+  if (status === 'rejected') {
+    updateData.reject_reason = rejectReason;
+  }
+
+  const { error } = await supabaseClient
+    .from('withdraws')
+    .update(updateData)
+    .eq('id', id);
+
+  if (!error) {
+    // Reject হলে কয়েন ফেরত দিন
+    if (status === 'rejected' && userTgId && amount > 0) {
+      await supabaseClient.rpc('secure_add_coins', {
+        user_tg_id: userTgId,
+        task_id_param: 0,
+        reward_coins: amount
+      });
+      
+      // ইউজারকে Telegram মেসেজ পাঠানোর চেষ্টা করুন
+      try {
+        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: userTgId,
+            text: `❌ *Withdrawal Rejected*\n\n` +
+                  `💰 Amount: ${amount} Coins\n` +
+                  `📝 Reason: ${rejectReason}\n` +
+                  `🔄 Your coins have been refunded to your balance.\n\n` +
+                  `🔍 Please fix the issue and try again.`,
+            parse_mode: 'Markdown'
+          })
+        });
+      } catch (msgErr) {
+        console.log('Could not send Telegram message:', msgErr);
       }
-    };
+    }
+    
+    // Admin-কে কনফার্মেশন দেখান
+    const message = status === 'approved' 
+      ? '✅ Withdrawal Approved! User will receive payment.' 
+      : `❌ Withdrawal Rejected!\n📝 Reason: ${rejectReason}\n🔄 Coins refunded to user.`;
+    
+    alert(message);
+    await loadWithdrawalRequests();
+  } else {
+    alert('❌ Error: ' + error.message);
+  }
+};
 
+      
+
+
+
+
+
+
+      
     async function loadPaymentMethodsAdmin() {
       paymentMethodsList.innerHTML = '';
       if (appConfig.paymentMethods) {
@@ -1456,38 +1515,61 @@ function showReferralModal() {
       }
     }
 
-    async function loadUserWithdrawHistory() {
-      if (!currentUser.id) return;
-      const { data: history } = await supabaseClient
-        .from('withdraws')
-        .select('*')
-        .eq('tg_id', currentUser.id)
-        .order('created_at', { ascending: false });
 
-      userWithdrawHistoryList.innerHTML = '';
-      if (history?.length > 0) {
-        history.forEach(h => {
-          let statusColor = 'var(--muted)';
-          if (h.status === 'approved') statusColor = 'var(--success)';
-          else if (h.status === 'rejected') statusColor = 'var(--danger)';
-          else if (h.status === 'pending') statusColor = 'var(--accent)';
 
-          const div = document.createElement('div');
-          div.className = 'leaderboard-item';
-          div.innerHTML = `
-            <div>${h.amount} Coins (${h.method})</div>
-            <div style="color:${statusColor};font-weight:bold;font-size:13px;">${h.status.toUpperCase()}</div>
-          `;
-          userWithdrawHistoryList.appendChild(div);
-        });
-      } else {
-        userWithdrawHistoryList.innerHTML = '<div class="small-muted">No withdraw history found.</div>';
+
+
+
+
+      async function loadUserWithdrawHistory() {
+  if (!currentUser.id) return;
+  const { data: history } = await supabaseClient
+    .from('withdraws')
+    .select('*')
+    .eq('tg_id', currentUser.id)
+    .order('created_at', { ascending: false });
+
+  userWithdrawHistoryList.innerHTML = '';
+  if (history?.length > 0) {
+    history.forEach(h => {
+      let statusColor = 'var(--muted)';
+      let statusIcon = '⏳';
+      if (h.status === 'approved') {
+        statusColor = 'var(--success)';
+        statusIcon = '✅';
+      } else if (h.status === 'rejected') {
+        statusColor = 'var(--danger)';
+        statusIcon = '❌';
+      } else if (h.status === 'pending') {
+        statusColor = 'var(--accent)';
+        statusIcon = '⏳';
       }
+
+      const reasonText = h.reject_reason 
+        ? `<div style="color:var(--danger);font-size:12px;margin-top:4px;">📝 ${h.reject_reason}</div>` 
+        : '';
+
+      const div = document.createElement('div');
+      div.className = 'leaderboard-item';
+      div.innerHTML = `
+        <div>
+          <div>${statusIcon} ${h.amount} Coins (${h.method})</div>
+          ${reasonText}
+        </div>
+        <div style="color:${statusColor};font-weight:bold;font-size:13px;">${h.status.toUpperCase()}</div>
+      `;
+      userWithdrawHistoryList.appendChild(div);
+    });
+  } else {
+    userWithdrawHistoryList.innerHTML = '<div class="small-muted">No withdraw history found.</div>';
+  }
       }
+    
 
 
 
 
+      
 
 
 
