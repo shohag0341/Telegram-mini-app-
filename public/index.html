@@ -773,7 +773,7 @@ async function handleReferralSubmit() {
     currentUser.balance += refereeReward;
     currentUser.ref_code_used = true;
     updateUI();
-    alert(`🎉 সফল রেফার! আপনি পেয়েছেন +${refereeReward} এবং আপনার বন্ধু পেয়েছেন +${referrerReward} কয়েন!`);
+    alert(`🎉 সফল রেফার! আপনি পেয়েছেন +${refereeReward}`);
   } else {
     alert("ত্রুটি দেখা দিয়েছে।");
   }
