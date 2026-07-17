@@ -1205,6 +1205,133 @@ window.copyAdminAccText = function(text) {
   
 
 
+
+
+
+
+
+
+  // ========================================================
+// FIXED WITHDRAWAL REQUESTS LOADER & STATUS UPDATER
+// ========================================================
+
+async function loadWithdrawalRequests() {
+  const container = document.getElementById('adminWithdrawalRequestsList') || document.querySelector('#admin-view .card:nth-of-type(2)') || document.evaluate("//div[contains(., 'Pending Withdraw Requests')]", document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+  
+  // স্ক্রিনশট অনুযায়ী কন্টেইনার খুঁজে বের করার সেফটি মেকানিজম
+  let targetContainer = document.getElementById('adminWithdrawalRequestsList');
+  if (!targetContainer) {
+    // যদি আইডি না থাকে, তবে টেক্সট ধরে কন্টেইনারটি খুঁজে নেবে
+    const headings = document.querySelectorAll('h3, h2, div');
+    for (let h of headings) {
+      if (h.textContent.includes('Pending Withdraw Requests')) {
+        targetContainer = h.parentElement;
+        break;
+      }
+    }
+  }
+
+  if (!targetContainer) return;
+
+  try {
+    let { data: reqs, error } = await supabaseClient
+      .from('withdrawals')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      targetContainer.innerHTML = `<p style="color:red;">Error: ${error.message}</p>`;
+      return;
+    }
+    
+    if (!reqs || reqs.length === 0) {
+      targetContainer.innerHTML = `<h3 style="margin-bottom:15px;">Pending Withdraw Requests</h3><p style="color:var(--text-muted); font-size:14px;">No withdrawal requests found.</p>`;
+      return;
+    }
+
+    // হেডলাইন ঠিক রেখে ভেতরের লিস্ট ক্লিয়ার করা
+    targetContainer.innerHTML = `<h3 style="margin-bottom:15px;">Pending Withdraw Requests</h3>`;
+
+    reqs.forEach(r => {
+      const div = document.createElement('div');
+      div.className = "card";
+      div.style.backgroundColor = "rgba(255,255,255,0.02)";
+      div.style.marginBottom = "10px";
+      div.style.padding = "12px";
+      div.style.borderRadius = "8px";
+      div.style.border = "1px solid rgba(255,255,255,0.05)";
+
+      const numId = `accNum_${r.id}`;
+
+      div.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <strong style="font-size:14px;">User Telegram ID: ${r.tg_id}</strong>
+          <span style="padding:2px 8px; border-radius:4px; font-size:11px; font-weight:bold; background:${r.status === 'pending' ? '#ff9800' : r.status === 'approved' ? '#4caf50' : '#f44336'}; color:#fff;">${r.status}</span>
+        </div>
+        <div style="margin-top:6px; font-size:13px; color:#ccc;">Method: <b style="color:#fff;">${r.method}</b> | Amount: <b style="color:#fff;">${r.amount_bdt || (r.amount_coins * 0.01)} BDT</b> (${r.amount_coins} Coins)</div>
+        
+        <div style="margin-top:8px; display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.04); padding:6px 10px; border-radius:6px;">
+          <span style="font-size:12px; color:#aaa;">Number:</span>
+          <strong id="${numId}" style="color:#4db6ac; font-size:14px; letter-spacing:0.5px;">${r.account_number}</strong>
+          <button class="btn small" style="padding:2px 8px; font-size:11px; width:auto; background:#2196f3; color:#fff; border:none; border-radius:4px; cursor:pointer; margin-left:auto;" onclick="copyAdminAccText('${r.account_number}')">Copy</button>
+        </div>
+
+        ${r.status === 'pending' ? `
+          <div style="margin-top:10px; display:flex; gap:8px;">
+            <button style="padding:6px 12px; font-size:12px; background:#4caf50; color:#fff; border:none; border-radius:4px; cursor:pointer; flex:1;" onclick="updateWithdrawStatus(${r.id}, 'approved', ${r.tg_id}, 0)">Approve</button>
+            <button style="padding:6px 12px; font-size:12px; background:#f44336; color:#fff; border:none; border-radius:4px; cursor:pointer; flex:1;" onclick="updateWithdrawStatus(${r.id}, 'rejected', ${r.tg_id}, ${r.amount_coins})">Reject</button>
+          </div>
+        ` : ''}
+      `;
+      targetContainer.appendChild(div);
+    });
+  } catch (err) {
+    targetContainer.innerHTML = `<p style="color:red;">Exception: ${err.message}</p>`;
+  }
+}
+
+// অ্যাকাউন্ট নাম্বার কপি করার গ্লোবাল ফাংশন
+window.copyAdminAccText = function(text) {
+  navigator.clipboard.writeText(text);
+  alert('অ্যাকাউন্ট নাম্বার কপি হয়েছে! 📋\n' + text);
+};
+
+// স্ট্যাটাস আপডেট করার (Approve/Reject) গ্লোবাল ফাংশন
+window.updateWithdrawStatus = async function(id, status, userTgId, refundCoins) {
+  if (!confirm(`আপনি কি নিশ্চিতভাবে এই রিকোয়েস্টটি ${status} করতে চান?`)) return;
+
+  try {
+    // ১. উইথড্র টেবিলের স্ট্যাটাস আপডেট
+    const { error: updateError } = await supabaseClient
+      .from('withdrawals')
+      .update({ status: status })
+      .eq('id', id);
+
+    if (updateError) throw updateError;
+
+    // ২. রিকোয়েস্ট Reject হলে ইউজারের ব্যালেন্সে কয়েন ফেরত দেওয়া
+    if (status === 'rejected' && refundCoins > 0) {
+      // ইউজারের বর্তমান ব্যালেন্স আনা
+      let { data: userData } = await supabaseClient.from('users').select('balance').eq('tg_id', userTgId).maybeSingle();
+      if (userData) {
+        await supabaseClient
+          .from('users')
+          .update({ balance: (userData.balance || 0) + refundCoins })
+          .eq('tg_id', userTgId);
+      }
+    }
+
+    alert(`সফলভাবে ${status} করা হয়েছে! 🎉`);
+    loadWithdrawalRequests(); // লিস্ট রিফ্রেশ করা
+  } catch (err) {
+    alert('স্ট্যাটাস আপডেট করতে সমস্যা হয়েছে: ' + err.message);
+  }
+};
+
+
+
+  
+
   
   
   
